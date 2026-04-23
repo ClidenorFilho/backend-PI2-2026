@@ -1,0 +1,258 @@
+// ─────────────────────────────────────────────────────────────────
+// prisma/schema.prisma
+// Esquema relacional completo do sistema de gestão de obras
+// ─────────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Enums ─────────────────────────────────────────────────────────
+
+enum ProfileType {
+  CONSTRUTOR
+  PROPRIETARIO
+}
+
+enum StatusManutencao {
+  PENDENTE
+  EM_ANDAMENTO
+  CONCLUIDA
+  CANCELADA
+}
+
+// ═════════════════════════════════════════════════════════════════
+// USUÁRIO BASE — herança por tabela concreta (Table-per-Type)
+// ═════════════════════════════════════════════════════════════════
+
+model User {
+  id          String       @id @default(uuid())
+  nome        String
+  cpf         String       @unique
+  email       String       @unique
+  hashSenha   String
+  profile     ProfileType
+
+  construtor  Construtor?
+  proprietario Proprietario?
+
+}
+
+// ── Subtipo: Construtor ───────────────────────────────────────────
+
+model Construtor {
+  idUser String @id @map("id_user")
+  crea   String
+
+  user       User        @relation(fields: [idUser], references: [id], onDelete: Cascade)
+  projetos   Projeto[]   @relation("ProjetoConstrutor")
+  alteracoes Alteracao[]
+
+  @@map("construtor")
+}
+
+// ── Subtipo: Proprietario ─────────────────────────────────────────
+
+model Proprietario {
+  idUser String @id @map("id_user")
+
+  user     User      @relation(fields: [idUser], references: [id], onDelete: Cascade)
+  projetos Projeto[] @relation("ProjetoProprietario")
+
+  @@map("proprietario")
+}
+
+// ═════════════════════════════════════════════════════════════════
+// PROJETO
+// ═════════════════════════════════════════════════════════════════
+
+model Projeto {
+  idProjeto      String   @id @default(uuid()) @map("id_projeto")
+  idConstrutor   String   @map("id_construtor")
+  idProprietario String   @map("id_proprietario")
+  art            String?
+  nomeProjeto    String   @map("nome_projeto")
+  dataInicio     DateTime @map("data_inicio")
+  tipoConstrucao String   @map("tipo_construcao")
+
+  construtor   Construtor   @relation("ProjetoConstrutor",   fields: [idConstrutor],   references: [idUser])
+  proprietario Proprietario @relation("ProjetoProprietario", fields: [idProprietario], references: [idUser])
+
+  andares             Andar[]
+  plantas             Planta[]
+  funcionariosProjeto FuncionarioProjeto[]
+
+  @@map("projeto")
+}
+
+// ═════════════════════════════════════════════════════════════════
+// ANDAR — chave composta (id_andar, id_projeto)
+// ═════════════════════════════════════════════════════════════════
+
+model Andar {
+  idAndar   Int    @map("id_andar")
+  idProjeto String @map("id_projeto")
+  nomeAndar String @map("nome_andar")
+
+  projeto Projeto  @relation(fields: [idProjeto], references: [idProjeto], onDelete: Cascade)
+  comodos Comodo[]
+
+  @@id([idAndar, idProjeto])
+  @@map("andar")
+}
+
+// ═════════════════════════════════════════════════════════════════
+// CÔMODO — chave composta (id_comodo, id_andar, id_projeto)
+// ═════════════════════════════════════════════════════════════════
+
+model Comodo {
+  idComodo   Int    @map("id_comodo")
+  idAndar    Int    @map("id_andar")
+  idProjeto  String @map("id_projeto")
+  nomeComodo String @map("nome_comodo")
+
+  andar Andar @relation(fields: [idAndar, idProjeto], references: [idAndar, idProjeto], onDelete: Cascade)
+
+  materiais  ComodoMaterial[]
+  alteracoes Alteracao[]
+
+  @@id([idComodo, idAndar, idProjeto])
+  @@map("comodo")
+}
+
+// ═════════════════════════════════════════════════════════════════
+// PLANTA — chave composta (id_planta, id_projeto)
+// ═════════════════════════════════════════════════════════════════
+
+model Planta {
+  idPlanta      Int    @map("id_planta")
+  idProjeto     String @map("id_projeto")
+  tipoPlanta    String @map("tipo_planta")
+  arquivoPlanta String @map("arquivo_planta")
+
+  projeto    Projeto     @relation(fields: [idProjeto], references: [idProjeto], onDelete: Cascade)
+  alteracoes Alteracao[]
+
+  @@id([idPlanta, idProjeto])
+  @@map("planta")
+}
+
+// ═════════════════════════════════════════════════════════════════
+// FUNCIONÁRIO DE OBRA
+// ═════════════════════════════════════════════════════════════════
+
+model FuncionarioObra {
+  idFunc   String @id @default(uuid()) @map("id_func")
+  nomeFunc String @map("nome_func")
+  cargo    String
+
+  projetos   FuncionarioProjeto[]
+  alteracoes Alteracao[]
+
+  @@map("funcionario_obra")
+}
+
+// ── Junção: Funcionário <-> Projeto ──────────────────────────────
+
+model FuncionarioProjeto {
+  idFunc       String   @map("id_func")
+  idProjeto    String   @map("id_projeto")
+  dataAlocacao DateTime @map("data_alocacao")
+
+  funcionario FuncionarioObra @relation(fields: [idFunc],    references: [idFunc])
+  projeto     Projeto         @relation(fields: [idProjeto], references: [idProjeto], onDelete: Cascade)
+
+  @@id([idFunc, idProjeto])
+  @@map("funcionario_projeto")
+}
+
+// ═════════════════════════════════════════════════════════════════
+// ALTERAÇÃO
+// ═════════════════════════════════════════════════════════════════
+
+model Alteracao {
+  idAlteracao     String @id @default(uuid()) @map("id_alteracao")
+
+  // FK composta → Cômodo
+  idComodo        Int    @map("id_comodo")
+  idAndar         Int    @map("id_andar")
+  idProjetoComodo String @map("id_projeto_comodo")
+
+  // FK composta → Planta
+  idPlanta        Int    @map("id_planta")
+  idProjetoPlanta String @map("id_projeto_planta")
+
+  // FKs simples
+  idFunc          String @map("id_func")
+  idConstrutor    String @map("id_construtor")
+
+  disciplina         String
+  nomeAlteracao      String   @map("nome_alteracao")
+  descricaoAlteracao String   @map("descricao_alteracao")
+  dataAlteracao      DateTime @default(now()) @map("data_alteracao")
+
+  comodo      Comodo          @relation(fields: [idComodo, idAndar, idProjetoComodo], references: [idComodo, idAndar, idProjeto])
+  planta      Planta          @relation(fields: [idPlanta, idProjetoPlanta],          references: [idPlanta, idProjeto])
+  funcionario FuncionarioObra @relation(fields: [idFunc],       references: [idFunc])
+  construtor  Construtor      @relation(fields: [idConstrutor], references: [idUser])
+
+  @@map("alteracao")
+}
+
+// ═════════════════════════════════════════════════════════════════
+// MATERIAL
+// ═════════════════════════════════════════════════════════════════
+
+model Material {
+  idMaterial        String  @id @default(uuid()) @map("id_material")
+  nomeMaterial      String  @map("nome_material")
+  cor               String?
+  tipoMaterial      String  @map("tipo_material")
+  tamanho           String?
+  marca             String?
+  descricaoMaterial String? @map("descricao_material")
+  lote              String?
+  referencia        String?
+
+  comodos     ComodoMaterial[]
+  manutencoes Manutencao[]
+
+  @@map("material")
+}
+
+// ── Junção: Cômodo <-> Material ──────────────────────────────────
+
+model ComodoMaterial {
+  idComodo        Int     @map("id_comodo")
+  idAndar         Int     @map("id_andar")
+  idProjeto       String  @map("id_projeto")
+  idMaterial      String  @map("id_material")
+  quantidadeUsada Decimal @map("quantidade_usada")
+
+  comodo   Comodo   @relation(fields: [idComodo, idAndar, idProjeto], references: [idComodo, idAndar, idProjeto])
+  material Material @relation(fields: [idMaterial],                   references: [idMaterial])
+
+  @@id([idComodo, idAndar, idProjeto, idMaterial])
+  @@map("comodo_material")
+}
+
+// ═════════════════════════════════════════════════════════════════
+// MANUTENÇÃO
+// ═════════════════════════════════════════════════════════════════
+
+model Manutencao {
+  idManutencao        String           @id @default(uuid()) @map("id_manutencao")
+  idMaterial          String           @map("id_material")
+  status              StatusManutencao @default(PENDENTE)
+  descricaoManutencao String           @map("descricao_manutencao")
+  periodicidade       String?
+
+  material Material @relation(fields: [idMaterial], references: [idMaterial])
+
+  @@map("manutencao")
+}
