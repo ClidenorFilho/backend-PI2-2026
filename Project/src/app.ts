@@ -6,6 +6,7 @@
 
 import express, { Request, Response, NextFunction } from "express";
 import userRoutes from "./routes/userRoutes";
+import authRoutes from "./routes/authRoutes";
 
 const app = express();
 
@@ -20,6 +21,7 @@ app.get("/health", (_req: Request, res: Response) => {
 
 // ── Rotas de domínio ──────────────────────────────────────────────
 app.use("/users", userRoutes);
+app.use("/auth", authRoutes);
 
 // ── 404 – rota não encontrada ─────────────────────────────────────
 app.use((_req: Request, res: Response) => {
