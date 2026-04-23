@@ -12,8 +12,11 @@ import {
   AuthService,
   AuthenticationError,
   ProfileMismatchError,
+  RESET_PASSWORD_GENERIC_MESSAGE,
 } from "../services/AuthService";
 import { LoginInput } from "../middlewares/validateLoginInput";
+import { ForgotPasswordInput } from "../middlewares/validateForgotPasswordInput";
+import { ResetPasswordInput } from "../middlewares/validateResetPasswordInput";
 
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
@@ -57,6 +60,54 @@ export class AuthController {
 
       // ── Erros inesperados → 500 sem vazar detalhes internos ──────
       console.error("[AuthController] Erro inesperado:", error);
+      res.status(500).json({
+        status: "error",
+        message: "Ocorreu um erro interno. Tente novamente mais tarde.",
+      });
+    }
+  };
+
+  forgotPassword = async (req: Request, res: Response): Promise<void> => {
+    const input = req.body as ForgotPasswordInput;
+
+    try {
+      const message = await this.authService.forgotPassword(input);
+
+      res.status(200).json({
+        status: "success",
+        message,
+      });
+    } catch (error) {
+      console.error("[AuthController] Erro inesperado no forgot-password:", error);
+
+      // Mantém anti-enumeração mesmo em erro inesperado.
+      res.status(200).json({
+        status: "success",
+        message: RESET_PASSWORD_GENERIC_MESSAGE,
+      });
+    }
+  };
+
+  resetPassword = async (req: Request, res: Response): Promise<void> => {
+    const input = req.body as ResetPasswordInput;
+
+    try {
+      await this.authService.resetPassword(input);
+
+      res.status(200).json({
+        status: "success",
+        message: "Senha redefinida com sucesso.",
+      });
+    } catch (error) {
+      if (error instanceof AuthenticationError) {
+        res.status(400).json({
+          status: "error",
+          message: error.message,
+        });
+        return;
+      }
+
+      console.error("[AuthController] Erro inesperado no reset-password:", error);
       res.status(500).json({
         status: "error",
         message: "Ocorreu um erro interno. Tente novamente mais tarde.",

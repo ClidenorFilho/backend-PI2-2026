@@ -37,6 +37,8 @@ model User {
   email       String       @unique
   hashSenha   String
   profile     ProfileType
+  resetPasswordToken   String?
+  resetPasswordExpires DateTime?
 
   construtor  Construtor?
   proprietario Proprietario?

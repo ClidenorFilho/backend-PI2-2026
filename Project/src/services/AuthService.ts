@@ -8,10 +8,15 @@
 // ─────────────────────────────────────────────────────────────────
 
 import bcrypt from "bcrypt";
+import bcryptjs from "bcryptjs";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
+import nodemailer from "nodemailer";
 import { ProfileType } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { LoginInput } from "../middlewares/validateLoginInput";
+import { ForgotPasswordInput } from "../middlewares/validateForgotPasswordInput";
+import { ResetPasswordInput } from "../middlewares/validateResetPasswordInput";
 
 // ── Tipos de retorno ──────────────────────────────────────────────
 
@@ -41,6 +46,22 @@ export class ProfileMismatchError extends Error {
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-this";
 const JWT_EXPIRATION = "24h";
+const RESET_TOKEN_TTL_MS = 30 * 60 * 1000;
+const RESET_PASSWORD_GENERIC_MESSAGE =
+  "Caso o e-mail esteja cadastrado, você receberá um link de recuperação.";
+const FRONTEND_RESET_PASSWORD_URL =
+  process.env.FRONTEND_RESET_PASSWORD_URL ||
+  "http://localhost:5173/redefinir-senha";
+const RESET_PASSWORD_EMAIL_SUBJECT =
+  "Redefinição de Senha - Sistema Manual do Proprietário";
+const BCRYPT_SALT_ROUNDS = 12;
+
+let cachedMailer:
+  | {
+      transporter: nodemailer.Transporter;
+      from: string;
+    }
+  | undefined;
 
 // ── Service ───────────────────────────────────────────────────────
 
@@ -132,4 +153,137 @@ export class AuthService {
       throw new Error("Token inválido ou expirado.");
     }
   }
+
+  async forgotPassword(input: ForgotPasswordInput): Promise<string> {
+    const user = await prisma.user.findUnique({
+      where: { email: input.email },
+      select: { id: true, email: true, nome: true },
+    });
+
+    if (!user) {
+      return RESET_PASSWORD_GENERIC_MESSAGE;
+    }
+
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const tokenHash = this.hashResetToken(rawToken);
+    const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MS);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        resetPasswordToken: tokenHash,
+        resetPasswordExpires: expiresAt,
+      },
+    });
+
+    // Envio em background para não bloquear a resposta da API.
+    void this.sendResetPasswordEmail({
+      to: user.email,
+      userName: user.nome,
+      rawToken,
+    });
+
+    return RESET_PASSWORD_GENERIC_MESSAGE;
+  }
+
+  async resetPassword(input: ResetPasswordInput): Promise<void> {
+    const tokenHash = this.hashResetToken(input.token);
+    const now = new Date();
+
+    const user = await prisma.user.findFirst({
+      where: {
+        resetPasswordToken: tokenHash,
+        resetPasswordExpires: {
+          gt: now,
+        },
+      },
+      select: { id: true },
+    });
+
+    if (!user) {
+      throw new AuthenticationError("Token inválido ou expirado.");
+    }
+
+    const hashedPassword = await bcryptjs.hash(input.password, BCRYPT_SALT_ROUNDS);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        hashSenha: hashedPassword,
+        resetPasswordToken: null,
+        resetPasswordExpires: null,
+      },
+    });
+  }
+
+  private hashResetToken(rawToken: string): string {
+    return crypto.createHash("sha256").update(rawToken).digest("hex");
+  }
+
+  private async sendResetPasswordEmail(payload: {
+    to: string;
+    userName: string;
+    rawToken: string;
+  }): Promise<void> {
+    try {
+      const mailer = await this.getMailer();
+      const resetLink = `${FRONTEND_RESET_PASSWORD_URL}?token=${encodeURIComponent(
+        payload.rawToken
+      )}`;
+
+      const text = [
+        "Olá,",
+        "Recebemos uma solicitação para redefinir a senha da sua conta no Manual do Proprietário.",
+        `Para criar uma nova senha, clique no link abaixo: [Link Seguro: ${resetLink}]`,
+        "Este link é válido por 30 minutos e pode ser utilizado apenas uma vez.",
+        "Se você não solicitou esta alteração, por favor, ignore este e-mail. A segurança da sua conta permanece inalterada.",
+        "Atenciosamente, Equipe Manual do Proprietário.",
+      ].join("\n");
+
+      const info = await mailer.transporter.sendMail({
+        from: mailer.from,
+        to: payload.to,
+        subject: RESET_PASSWORD_EMAIL_SUBJECT,
+        text,
+      });
+
+      const previewUrl = nodemailer.getTestMessageUrl(info);
+      if (previewUrl) {
+        console.log(`[AuthService] E-mail de recuperação capturado no Ethereal: ${previewUrl}`);
+      }
+    } catch (error) {
+      console.error("[AuthService] Falha ao enviar e-mail de recuperação:", error);
+    }
+  }
+
+  private async getMailer(): Promise<{
+    transporter: nodemailer.Transporter;
+    from: string;
+  }> {
+    if (cachedMailer) {
+      return cachedMailer;
+    }
+
+    const testAccount = await nodemailer.createTestAccount();
+    const transporter = nodemailer.createTransport({
+      host: "smtp.ethereal.email",
+      port: 587,
+      secure: false,
+      auth: {
+        user: testAccount.user,
+        pass: testAccount.pass,
+      },
+    });
+
+    cachedMailer = {
+      transporter,
+      from:
+        process.env.MAIL_FROM ||
+        '"Equipe Manual do Proprietário" <no-reply@manualproprietario.local>',
+    };
+
+    return cachedMailer;
+  }
 }
+
+export { RESET_PASSWORD_GENERIC_MESSAGE };

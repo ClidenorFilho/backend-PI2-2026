@@ -8,6 +8,8 @@ import { Router } from "express";
 import { AuthController } from "../controllers/AuthController";
 import { AuthService } from "../services/AuthService";
 import { validateLoginInput } from "../middlewares/validateLoginInput";
+import { validateForgotPasswordInput } from "../middlewares/validateForgotPasswordInput";
+import { validateResetPasswordInput } from "../middlewares/validateResetPasswordInput";
 
 const router = Router();
 
@@ -26,6 +28,18 @@ router.post(
   "/login",
   validateLoginInput,
   authController.login
+);
+
+router.post(
+  "/forgot-password",
+  validateForgotPasswordInput,
+  authController.forgotPassword
+);
+
+router.post(
+  "/reset-password",
+  validateResetPasswordInput,
+  authController.resetPassword
 );
 
 export default router;
