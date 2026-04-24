@@ -47,6 +47,11 @@ services:
       NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER:-apiuser}:${POSTGRES_PASSWORD:-apipassword}@postgres:5432/${POSTGRES_DB:-userdb}?schema=public
       PORT: 3000
+      # 👇 AS VARIÁVEIS DE E-MAIL LIBERADAS AQUI 👇
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
     depends_on:
       postgres:
         condition: service_healthy
