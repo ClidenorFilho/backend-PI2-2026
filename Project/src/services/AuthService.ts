@@ -245,7 +245,7 @@ export class AuthService {
       const text = [
         "Olá,",
         "Recebemos uma solicitação para redefinir a senha da sua conta no Manual do Proprietário.",
-        `Para criar uma nova senha, clique no link abaixo: [Link Seguro: ${resetLink}]`,
+        `Para criar uma nova senha, clique no link abaixo: Link Seguro: ${resetLink}`,
         "Este link é válido por 30 minutos e pode ser utilizado apenas uma vez.",
         "Se você não solicitou esta alteração, por favor, ignore este e-mail. A segurança da sua conta permanece inalterada.",
         "Atenciosamente, Equipe Manual do Proprietário.",
