@@ -55,6 +55,17 @@ const FRONTEND_RESET_PASSWORD_URL =
 const RESET_PASSWORD_EMAIL_SUBJECT =
   "Redefinição de Senha - Sistema Manual do Proprietário";
 const BCRYPT_SALT_ROUNDS = 12;
+const SMTP_PORT = Number(process.env.SMTP_PORT || 465);
+
+function getRequiredEnv(name: string): string {
+  const value = process.env[name];
+
+  if (!value) {
+    throw new Error(`Variável de ambiente obrigatória não definida: ${name}`);
+  }
+
+  return value;
+}
 
 let cachedMailer:
   | {
@@ -234,23 +245,20 @@ export class AuthService {
       const text = [
         "Olá,",
         "Recebemos uma solicitação para redefinir a senha da sua conta no Manual do Proprietário.",
-        `Para criar uma nova senha, clique no link abaixo: [Link Seguro: ${resetLink}]`,
+        `Para criar uma nova senha, clique no link abaixo: Link Seguro: ${resetLink}`,
         "Este link é válido por 30 minutos e pode ser utilizado apenas uma vez.",
         "Se você não solicitou esta alteração, por favor, ignore este e-mail. A segurança da sua conta permanece inalterada.",
         "Atenciosamente, Equipe Manual do Proprietário.",
       ].join("\n");
 
-      const info = await mailer.transporter.sendMail({
+      await mailer.transporter.sendMail({
         from: mailer.from,
         to: payload.to,
         subject: RESET_PASSWORD_EMAIL_SUBJECT,
         text,
       });
 
-      const previewUrl = nodemailer.getTestMessageUrl(info);
-      if (previewUrl) {
-        console.log(`[AuthService] E-mail de recuperação capturado no Ethereal: ${previewUrl}`);
-      }
+      console.log(`[AuthService] E-mail de recuperação enviado para ${payload.to}`);
     } catch (error) {
       console.error("[AuthService] Falha ao enviar e-mail de recuperação:", error);
     }
@@ -264,22 +272,19 @@ export class AuthService {
       return cachedMailer;
     }
 
-    const testAccount = await nodemailer.createTestAccount();
     const transporter = nodemailer.createTransport({
-      host: "smtp.ethereal.email",
-      port: 587,
-      secure: false,
+      host: getRequiredEnv("SMTP_HOST"),
+      port: SMTP_PORT,
+      secure: true,
       auth: {
-        user: testAccount.user,
-        pass: testAccount.pass,
+        user: getRequiredEnv("SMTP_USER"),
+        pass: getRequiredEnv("SMTP_PASS"),
       },
     });
 
     cachedMailer = {
       transporter,
-      from:
-        process.env.MAIL_FROM ||
-        '"Equipe Manual do Proprietário" <no-reply@manualproprietario.local>',
+      from: `"Equipe Manual do Proprietário" <${getRequiredEnv("SMTP_USER")}>`,
     };
 
     return cachedMailer;
