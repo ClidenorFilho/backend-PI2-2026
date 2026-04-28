@@ -76,14 +76,20 @@ model Proprietario {
 model Projeto {
   idProjeto      String   @id @default(uuid()) @map("id_projeto")
   idConstrutor   String   @map("id_construtor")
-  idProprietario String   @map("id_proprietario")
+  idProprietario String?  @map("id_proprietario")
   art            String?
   nomeProjeto    String   @map("nome_projeto")
+  descricao      String?
+  rua            String
+  bairro         String
+  numero         String
+  complemento    String?
   dataInicio     DateTime @map("data_inicio")
+  dataConclusao  DateTime? @map("data_conclusao")
   tipoConstrucao String   @map("tipo_construcao")
 
   construtor   Construtor   @relation("ProjetoConstrutor",   fields: [idConstrutor],   references: [idUser])
-  proprietario Proprietario @relation("ProjetoProprietario", fields: [idProprietario], references: [idUser])
+  proprietario Proprietario? @relation("ProjetoProprietario", fields: [idProprietario], references: [idUser])
 
   andares             Andar[]
   plantas             Planta[]

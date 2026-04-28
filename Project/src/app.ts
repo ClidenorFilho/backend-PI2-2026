@@ -7,6 +7,7 @@
 import express, { Request, Response, NextFunction } from "express";
 import userRoutes from "./routes/userRoutes";
 import authRoutes from "./routes/authRoutes";
+import projectRoutes from "./routes/projectRoutes";
 import cors from 'cors';
 
 const app = express();
@@ -24,6 +25,7 @@ app.get("/health", (_req: Request, res: Response) => {
 // ── Rotas de domínio ──────────────────────────────────────────────
 app.use("/users", userRoutes);
 app.use("/auth", authRoutes);
+app.use("/projects", projectRoutes);
 
 // ── 404 – rota não encontrada ─────────────────────────────────────
 app.use((_req: Request, res: Response) => {
