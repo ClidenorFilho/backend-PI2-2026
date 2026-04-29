@@ -9,6 +9,7 @@
 import { prisma } from "../lib/prisma";
 import { CreateProjectInput } from "../middlewares/validateCreateProject";
 import { AddEmployeeInput } from "../middlewares/validateEmployee";
+import { UpdateEmployeeInput } from "../middlewares/validateUpdateEmployee";
 import { Projeto, FuncionarioObra, Planta } from "@prisma/client";
 
 // ── Erros customizados ────────────────────────────────────────────
@@ -45,6 +46,13 @@ export class DocumentUploadError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "DocumentUploadError";
+  }
+}
+
+export class EmployeeNotFoundError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "EmployeeNotFoundError";
   }
 }
 
@@ -211,6 +219,153 @@ export class ProjectService {
 
       throw new DocumentUploadError(
         "Erro desconhecido ao adicionar documento. Tente novamente mais tarde."
+      );
+    }
+  }
+
+  /**
+   * Atualiza o nome e/ou cargo de um Funcionário em um Projeto.
+   * @param idProjeto - ID do projeto
+   * @param idFunc - ID do funcionário
+   * @param data - Dados de atualização (nomeFunc?, cargo?)
+   * @returns {Promise<FuncionarioObra>} - O funcionário atualizado
+   * @throws {ProjectNotFoundError} se o Projeto não existir
+   * @throws {EmployeeNotFoundError} se o Funcionário não existir ou não pertencer ao projeto
+   * @throws {EmployeeCreationError} em caso de erro ao atualizar
+   */
+  async updateEmployee(
+    idProjeto: string,
+    idFunc: string,
+    data: UpdateEmployeeInput
+  ): Promise<FuncionarioObra> {
+    // 1. Validar se o Projeto existe
+    const projeto = await prisma.projeto.findUnique({
+      where: { idProjeto },
+    });
+
+    if (!projeto) {
+      throw new ProjectNotFoundError(
+        "Projeto não encontrado. Verifique o ID do projeto."
+      );
+    }
+
+    // 2. Validar se o Funcionário existe E pertence ao projeto
+    const funcionarioProjeto = await prisma.funcionarioProjeto.findUnique({
+      where: {
+        idFunc_idProjeto: {
+          idFunc,
+          idProjeto,
+        },
+      },
+    });
+
+    if (!funcionarioProjeto) {
+      throw new EmployeeNotFoundError(
+        "Funcionário não encontrado neste projeto. Verifique os IDs fornecidos."
+      );
+    }
+
+    // 3. Atualizar o Funcionário com os dados fornecidos
+    try {
+      const funcionario = await prisma.funcionarioObra.update({
+        where: { idFunc },
+        data: {
+          ...(data.nomeFunc && { nomeFunc: data.nomeFunc }),
+          ...(data.cargo && { cargo: data.cargo }),
+        },
+      });
+
+      return funcionario;
+    } catch (error) {
+      console.error("[ProjectService] Erro ao atualizar funcionário:", error);
+
+      if (error instanceof Error) {
+        throw new EmployeeCreationError(
+          `Erro ao atualizar funcionário: ${error.message}`
+        );
+      }
+
+      throw new EmployeeCreationError(
+        "Erro desconhecido ao atualizar funcionário. Tente novamente mais tarde."
+      );
+    }
+  }
+
+  /**
+   * Remove um Funcionário de um Projeto.
+   * Deleta a relação em FuncionarioProjeto.
+   * Se o funcionário não estiver vinculado a mais nenhum projeto, deleta-o também de FuncionarioObra.
+   * @param idProjeto - ID do projeto
+   * @param idFunc - ID do funcionário
+   * @throws {ProjectNotFoundError} se o Projeto não existir
+   * @throws {EmployeeNotFoundError} se o Funcionário não existir no projeto
+   * @throws {EmployeeCreationError} em caso de erro ao remover
+   */
+  async removeEmployee(
+    idProjeto: string,
+    idFunc: string
+  ): Promise<void> {
+    // 1. Validar se o Projeto existe
+    const projeto = await prisma.projeto.findUnique({
+      where: { idProjeto },
+    });
+
+    if (!projeto) {
+      throw new ProjectNotFoundError(
+        "Projeto não encontrado. Verifique o ID do projeto."
+      );
+    }
+
+    // 2. Validar se o Funcionário está vinculado ao projeto
+    const funcionarioProjeto = await prisma.funcionarioProjeto.findUnique({
+      where: {
+        idFunc_idProjeto: {
+          idFunc,
+          idProjeto,
+        },
+      },
+    });
+
+    if (!funcionarioProjeto) {
+      throw new EmployeeNotFoundError(
+        "Funcionário não encontrado neste projeto. Verifique os IDs fornecidos."
+      );
+    }
+
+    // 3. Remover em transação: deletar relação e depois o funcionário se órfão
+    try {
+      // 3a. Deletar a relação em FuncionarioProjeto
+      await prisma.funcionarioProjeto.delete({
+        where: {
+          idFunc_idProjeto: {
+            idFunc,
+            idProjeto,
+          },
+        },
+      });
+
+      // 3b. Verificar se o funcionário ainda está vinculado a algum projeto
+      const vinculosRestantes = await prisma.funcionarioProjeto.findMany({
+        where: { idFunc },
+      });
+
+      // 3c. Se não há mais projetos, deletar o funcionário
+      if (vinculosRestantes.length === 0) {
+        await prisma.funcionarioObra.delete({
+          where: { idFunc },
+        });
+      }
+    } catch (error) {
+      console.error("[ProjectService] Erro ao remover funcionário:", error);
+
+      if (error instanceof Error) {
+        throw new EmployeeCreationError(
+          `Erro ao remover funcionário: ${error.message}`
+        );
+      }
+
+      throw new EmployeeCreationError(
+        "Erro desconhecido ao remover funcionário. Tente novamente mais tarde."
       );
     }
   }

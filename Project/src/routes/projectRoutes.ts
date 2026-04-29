@@ -1,10 +1,12 @@
 // src/routes/projectRoutes.ts
-// ─────────────────────────────────────────────────────────────────
+// ---------------------------------
 // Mapeamento das rotas de Projeto.
-// Pipeline: POST /projects → authMiddleware → validateCreateProject → controller.create
-// Pipeline: POST /projects/:id/employees → authMiddleware → validateEmployee → controller.addEmployee
-// Pipeline: POST /projects/:id/documents → authMiddleware → multer → controller.addDocument
-// ─────────────────────────────────────────────────────────────────
+// Pipeline: POST /projects -> authMiddleware -> validateCreateProject -> controller.create
+// Pipeline: POST /projects/:id/employees -> authMiddleware -> validateEmployee -> controller.addEmployee
+// Pipeline: PUT /projects/:id/employees/:idFunc -> authMiddleware -> validateUpdateEmployee -> controller.updateEmployee
+// Pipeline: DELETE /projects/:id/employees/:idFunc -> authMiddleware -> controller.removeEmployee
+// Pipeline: POST /projects/:id/documents -> authMiddleware -> multer -> controller.addDocument
+// ---------------------------------
 
 import { Router } from "express";
 import { ProjectController } from "../controllers/ProjectController";
@@ -12,6 +14,7 @@ import { ProjectService } from "../services/ProjectService";
 import { authMiddleware } from "../middlewares/authMiddleware";
 import { validateCreateProject } from "../middlewares/validateCreateProject";
 import { validateEmployee } from "../middlewares/validateEmployee";
+import { validateUpdateEmployee } from "../middlewares/validateUpdateEmployee";
 import upload from "../config/multer";
 
 const router = Router();
@@ -68,6 +71,39 @@ router.post(
   authMiddleware,
   upload.single("file"),
   projectController.addDocument
+);
+
+/**
+ * @route  PUT /projects/:id/employees/:idFunc
+ * @desc   Atualiza o nome e/ou cargo de um Funcionário em um Projeto
+ * @access Private (requer autenticação)
+ * @middleware authMiddleware - Protege a rota
+ * @middleware validateUpdateEmployee - Valida nomeFunc e cargo (ambos opcionais, pelo menos um obrigatório)
+ * @param  id - ID do Projeto (path parameter)
+ * @param  idFunc - ID do Funcionário (path parameter)
+ * @body   { nomeFunc?: string, cargo?: string }
+ * @return 200 { idFunc: string, nomeFunc: string, cargo: string }
+ */
+router.put(
+  "/:id/employees/:idFunc",
+  authMiddleware,
+  validateUpdateEmployee,
+  projectController.updateEmployee
+);
+
+/**
+ * @route  DELETE /projects/:id/employees/:idFunc
+ * @desc   Remove um Funcionário de um Projeto (deleta-o se não estiver vinculado a outros projetos)
+ * @access Private (requer autenticação)
+ * @middleware authMiddleware - Protege a rota
+ * @param  id - ID do Projeto (path parameter)
+ * @param  idFunc - ID do Funcionário (path parameter)
+ * @return 200 { message: string }
+ */
+router.delete(
+  "/:id/employees/:idFunc",
+  authMiddleware,
+  projectController.removeEmployee
 );
 
 export default router;

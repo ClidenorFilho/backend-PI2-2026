@@ -16,9 +16,11 @@ import {
   ProjectNotFoundError,
   EmployeeCreationError,
   DocumentUploadError,
+  EmployeeNotFoundError,
 } from "../services/ProjectService";
 import { CreateProjectInput } from "../middlewares/validateCreateProject";
 import { AddEmployeeInput } from "../middlewares/validateEmployee";
+import { UpdateEmployeeInput } from "../middlewares/validateUpdateEmployee";
 
 export class ProjectController {
   constructor(private readonly projectService: ProjectService) {}
@@ -206,6 +208,118 @@ export class ProjectController {
       res.status(500).json({
         status: "error",
         message: "Ocorreu um erro ao anexar o documento. Tente novamente mais tarde.",
+      });
+    }
+  };
+
+  /**
+   * PUT /projects/:id/employees/:idFunc
+   * Atualiza o nome e/ou cargo de um Funcionário em um Projeto.
+   */
+  updateEmployee = async (req: Request, res: Response): Promise<void> => {
+    const { id: idProjeto, idFunc } = req.params;
+    const data = req.body as UpdateEmployeeInput;
+
+    try {
+      const funcionario = await this.projectService.updateEmployee(
+        idProjeto,
+        idFunc,
+        data
+      );
+
+      res.status(200).json({
+        status: "success",
+        message: "Funcionário atualizado com sucesso.",
+        data: {
+          idFunc: funcionario.idFunc,
+          nomeFunc: funcionario.nomeFunc,
+          cargo: funcionario.cargo,
+        },
+      });
+    } catch (error) {
+      // ── Projeto não encontrado ────────────────────────────────────
+      if (error instanceof ProjectNotFoundError) {
+        res.status(404).json({
+          status: "error",
+          message: error.message,
+        });
+        return;
+      }
+
+      // ── Funcionário não encontrado ou não pertence ao projeto ─────
+      if (error instanceof EmployeeNotFoundError) {
+        res.status(404).json({
+          status: "error",
+          message: error.message,
+        });
+        return;
+      }
+
+      // ── Erro ao atualizar funcionário ────────────────────────────
+      if (error instanceof EmployeeCreationError) {
+        res.status(400).json({
+          status: "error",
+          message: error.message,
+        });
+        return;
+      }
+
+      // ── Erros inesperados → 500 ──────────────────────────────────
+      console.error("[ProjectController] Erro ao atualizar funcionário:", error);
+      res.status(500).json({
+        status: "error",
+        message: "Ocorreu um erro ao atualizar o funcionário. Tente novamente mais tarde.",
+      });
+    }
+  };
+
+  /**
+   * DELETE /projects/:id/employees/:idFunc
+   * Remove um Funcionário de um Projeto (e o deleta se não estiver vinculado a outros projetos).
+   */
+  removeEmployee = async (req: Request, res: Response): Promise<void> => {
+    const { id: idProjeto, idFunc } = req.params;
+
+    try {
+      await this.projectService.removeEmployee(idProjeto, idFunc);
+
+      res.status(200).json({
+        status: "success",
+        message: "Funcionário removido do projeto com sucesso.",
+      });
+    } catch (error) {
+      // ── Projeto não encontrado ────────────────────────────────────
+      if (error instanceof ProjectNotFoundError) {
+        res.status(404).json({
+          status: "error",
+          message: error.message,
+        });
+        return;
+      }
+
+      // ── Funcionário não encontrado ou não pertence ao projeto ─────
+      if (error instanceof EmployeeNotFoundError) {
+        res.status(404).json({
+          status: "error",
+          message: error.message,
+        });
+        return;
+      }
+
+      // ── Erro ao remover funcionário ──────────────────────────────
+      if (error instanceof EmployeeCreationError) {
+        res.status(400).json({
+          status: "error",
+          message: error.message,
+        });
+        return;
+      }
+
+      // ── Erros inesperados → 500 ──────────────────────────────────
+      console.error("[ProjectController] Erro ao remover funcionário:", error);
+      res.status(500).json({
+        status: "error",
+        message: "Ocorreu um erro ao remover o funcionário. Tente novamente mais tarde.",
       });
     }
   };
