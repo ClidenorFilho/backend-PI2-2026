@@ -5,9 +5,11 @@
 // ─────────────────────────────────────────────────────────────────
 
 import express, { Request, Response, NextFunction } from "express";
+import swaggerUi from 'swagger-ui-express';
 import userRoutes from "./routes/userRoutes";
 import authRoutes from "./routes/authRoutes";
 import projectRoutes from "./routes/projectRoutes";
+import { swaggerSpec } from "./config/swaggerConfig";
 import cors from 'cors';
 
 const app = express();
@@ -21,6 +23,13 @@ app.use(express.urlencoded({ extended: true }));
 app.get("/health", (_req: Request, res: Response) => {
   res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
 });
+
+// ── Swagger/API Docs ───────────────────────────────────────────────
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  swaggerOptions: {
+    persistAuthorization: true,
+  },
+}));
 
 // ── Rotas de domínio ──────────────────────────────────────────────
 app.use("/users", userRoutes);
