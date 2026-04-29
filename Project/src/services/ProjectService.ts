@@ -369,4 +369,49 @@ export class ProjectService {
       );
     }
   }
+
+  /**
+   * Lista todos os Projetos de um Construtor.
+   * Inclui o nome do Construtor (responsável) e ordena por updatedAt decrescente.
+   * @param idConstrutor - ID do Construtor (extraído do token JWT)
+   * @returns {Promise<Projeto[]>} - Array de projetos com dados do construtor
+   * @throws {ProjectCreationError} em caso de erro ao buscar
+   */
+  async listProjects(idConstrutor: string): Promise<any[]> {
+    try {
+      const projetos = await prisma.projeto.findMany({
+        where: {
+          idConstrutor,
+        },
+        include: {
+          construtor: {
+            include: {
+              user: {
+                select: {
+                  nome: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: {
+          updatedAt: "desc",
+        },
+      });
+
+      return projetos;
+    } catch (error) {
+      console.error("[ProjectService] Erro ao listar projetos:", error);
+
+      if (error instanceof Error) {
+        throw new ProjectCreationError(
+          `Erro ao listar projetos: ${error.message}`
+        );
+      }
+
+      throw new ProjectCreationError(
+        "Erro desconhecido ao listar projetos. Tente novamente mais tarde."
+      );
+    }
+  }
 }

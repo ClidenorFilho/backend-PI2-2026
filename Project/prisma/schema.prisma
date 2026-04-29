@@ -26,6 +26,12 @@ enum StatusManutencao {
   CANCELADA
 }
 
+enum StatusProjeto {
+  EM_CONSTRUCAO
+  ENTREGUE
+  DESATIVADO
+}
+
 // ═════════════════════════════════════════════════════════════════
 // USUÁRIO BASE — herança por tabela concreta (Table-per-Type)
 // ═════════════════════════════════════════════════════════════════
@@ -87,6 +93,9 @@ model Projeto {
   dataInicio     DateTime @map("data_inicio")
   dataConclusao  DateTime? @map("data_conclusao")
   tipoConstrucao String   @map("tipo_construcao")
+  status         StatusProjeto @default(EM_CONSTRUCAO)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at")
 
   construtor   Construtor   @relation("ProjetoConstrutor",   fields: [idConstrutor],   references: [idUser])
   proprietario Proprietario? @relation("ProjetoProprietario", fields: [idProprietario], references: [idUser])

@@ -1,6 +1,7 @@
 // src/routes/projectRoutes.ts
 // ---------------------------------
 // Mapeamento das rotas de Projeto.
+// Pipeline: GET /projects -> authMiddleware -> controller.list
 // Pipeline: POST /projects -> authMiddleware -> validateCreateProject -> controller.create
 // Pipeline: POST /projects/:id/employees -> authMiddleware -> validateEmployee -> controller.addEmployee
 // Pipeline: PUT /projects/:id/employees/:idFunc -> authMiddleware -> validateUpdateEmployee -> controller.updateEmployee
@@ -22,6 +23,19 @@ const router = Router();
 // Composição manual de dependências (sem IoC container)
 const projectService = new ProjectService();
 const projectController = new ProjectController(projectService);
+
+/**
+ * @route  GET /projects
+ * @desc   Lista todos os Projetos do Construtor logado
+ * @access Private (requer autenticação)
+ * @middleware authMiddleware - Extrai o ID do usuário do token JWT
+ * @return 200 { nomeProjeto: string, responsavel: string, status: string, ultimaAtualizacao: datetime }
+ */
+router.get(
+  "/",
+  authMiddleware,
+  projectController.list
+);
 
 /**
  * @route  POST /projects

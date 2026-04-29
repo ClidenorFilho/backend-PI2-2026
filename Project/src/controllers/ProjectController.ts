@@ -323,4 +323,55 @@ export class ProjectController {
       });
     }
   };
+
+  /**
+   * GET /projects
+   * Lista todos os Projetos do Construtor logado.
+   */
+  list = async (req: Request, res: Response): Promise<void> => {
+    // 1. Extrair o ID do Construtor (usuário logado)
+    if (!req.user || !req.user.id) {
+      res.status(401).json({
+        status: "error",
+        message: "Usuário não autenticado. Realize o login primeiro.",
+      });
+      return;
+    }
+
+    const idConstrutor = req.user.id;
+
+    try {
+      // 2. Chamar o service
+      const projetos = await this.projectService.listProjects(idConstrutor);
+
+      // 3. Retornar 200 OK com lista de projetos
+      res.status(200).json({
+        status: "success",
+        message: "Projetos listados com sucesso.",
+        data: projetos.map((projeto) => ({
+          id: projeto.idProjeto,
+          nomeProjeto: projeto.nomeProjeto,
+          responsavel: projeto.construtor.user.nome,
+          status: projeto.status,
+          ultimaAtualizacao: projeto.updatedAt,
+        })),
+      });
+    } catch (error) {
+      // ── Erro ao listar projetos ──────────────────────────────────
+      if (error instanceof ProjectCreationError) {
+        res.status(400).json({
+          status: "error",
+          message: error.message,
+        });
+        return;
+      }
+
+      // ── Erros inesperados → 500 ──────────────────────────────────
+      console.error("[ProjectController] Erro ao listar projetos:", error);
+      res.status(500).json({
+        status: "error",
+        message: "Ocorreu um erro ao listar os projetos. Tente novamente mais tarde.",
+      });
+    }
+  };
 }
