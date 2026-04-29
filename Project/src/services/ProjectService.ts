@@ -414,4 +414,58 @@ export class ProjectService {
       );
     }
   }
+
+  /**
+   * Busca um Projeto específico pelo ID, garantindo que pertence ao Construtor.
+   * Inclui plantas e funcionários vinculados ao projeto.
+   * @param idProjeto - ID do projeto
+   * @param idConstrutor - ID do Construtor (extraído do token JWT)
+   * @returns {Promise<any>} - Projeto com seus relacionamentos
+   * @throws {ProjectNotFoundError} se o Projeto não existir ou não pertencer ao construtor
+   * @throws {ProjectCreationError} em caso de erro ao buscar
+   */
+  async getProjectById(
+    idProjeto: string,
+    idConstrutor: string
+  ): Promise<any> {
+    try {
+      const projeto = await prisma.projeto.findUnique({
+        where: { idProjeto },
+        include: {
+          plantas: true,
+          funcionariosProjeto: {
+            include: {
+              funcionario: true,
+            },
+          },
+        },
+      });
+
+      // Validar se o projeto existe E pertence ao construtor logado
+      if (!projeto || projeto.idConstrutor !== idConstrutor) {
+        throw new ProjectNotFoundError(
+          "Projeto não encontrado ou você não tem permissão para acessá-lo."
+        );
+      }
+
+      return projeto;
+    } catch (error) {
+      // Re-lançar erro customizado se for ProjectNotFoundError
+      if (error instanceof ProjectNotFoundError) {
+        throw error;
+      }
+
+      console.error("[ProjectService] Erro ao buscar projeto:", error);
+
+      if (error instanceof Error) {
+        throw new ProjectCreationError(
+          `Erro ao buscar projeto: ${error.message}`
+        );
+      }
+
+      throw new ProjectCreationError(
+        "Erro desconhecido ao buscar projeto. Tente novamente mais tarde."
+      );
+    }
+  }
 }

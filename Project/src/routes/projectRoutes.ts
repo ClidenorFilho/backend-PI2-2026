@@ -3,6 +3,7 @@
 // Mapeamento das rotas de Projeto.
 // Pipeline: GET /projects -> authMiddleware -> controller.list
 // Pipeline: POST /projects -> authMiddleware -> validateCreateProject -> controller.create
+// Pipeline: GET /projects/:id -> authMiddleware -> controller.getById
 // Pipeline: POST /projects/:id/employees -> authMiddleware -> validateEmployee -> controller.addEmployee
 // Pipeline: PUT /projects/:id/employees/:idFunc -> authMiddleware -> validateUpdateEmployee -> controller.updateEmployee
 // Pipeline: DELETE /projects/:id/employees/:idFunc -> authMiddleware -> controller.removeEmployee
@@ -51,6 +52,20 @@ router.post(
   authMiddleware,
   validateCreateProject,
   projectController.create
+);
+
+/**
+ * @route  GET /projects/:id
+ * @desc   Busca os detalhes completos de um Projeto específico
+ * @access Private (requer autenticação)
+ * @middleware authMiddleware - Protege a rota
+ * @param  id - ID do Projeto (path parameter)
+ * @return 200 { id, nomeProjeto, descricao, status, datas, endereco, plantas[], funcionarios[] }
+ */
+router.get(
+  "/:id",
+  authMiddleware,
+  projectController.getById
 );
 
 /**

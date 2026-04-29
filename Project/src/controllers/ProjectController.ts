@@ -374,4 +374,92 @@ export class ProjectController {
       });
     }
   };
+
+  /**
+   * GET /projects/:id
+   * Busca os detalhes completos de um Projeto específico.
+   */
+  getById = async (req: Request, res: Response): Promise<void> => {
+    // 1. Extrair ID do Construtor (usuário logado)
+    if (!req.user || !req.user.id) {
+      res.status(401).json({
+        status: "error",
+        message: "Usuário não autenticado. Realize o login primeiro.",
+      });
+      return;
+    }
+
+    const idConstrutor = req.user.id;
+    const { id: idProjeto } = req.params;
+
+    try {
+      // 2. Chamar o service
+      const projeto = await this.projectService.getProjectById(
+        idProjeto,
+        idConstrutor
+      );
+
+      // 3. Formatar resposta amigável para o Front-end
+      res.status(200).json({
+        status: "success",
+        message: "Projeto encontrado com sucesso.",
+        data: {
+          id: projeto.idProjeto,
+          nomeProjeto: projeto.nomeProjeto,
+          descricao: projeto.descricao,
+          status: projeto.status,
+          tipoConstrucao: projeto.tipoConstrucao,
+          art: projeto.art,
+          endereco: {
+            rua: projeto.rua,
+            bairro: projeto.bairro,
+            numero: projeto.numero,
+            complemento: projeto.complemento,
+          },
+          datas: {
+            dataInicio: projeto.dataInicio,
+            dataConclusao: projeto.dataConclusao,
+            criadoEm: projeto.createdAt,
+            ultimaAtualizacao: projeto.updatedAt,
+          },
+          plantas: projeto.plantas.map((planta:any) => ({
+            id: planta.idPlanta,
+            tipo: planta.tipoPlanta,
+            arquivo: planta.arquivoPlanta,
+          })),
+          funcionarios: projeto.funcionariosProjeto.map((vínculo:any) => ({
+            id: vínculo.funcionario.idFunc,
+            nome: vínculo.funcionario.nomeFunc,
+            cargo: vínculo.funcionario.cargo,
+            dataAlocacao: vínculo.dataAlocacao,
+          })),
+        },
+      });
+    } catch (error) {
+      // ── Projeto não encontrado ────────────────────────────────────
+      if (error instanceof ProjectNotFoundError) {
+        res.status(404).json({
+          status: "error",
+          message: error.message,
+        });
+        return;
+      }
+
+      // ── Erro ao buscar projeto ────────────────────────────────────
+      if (error instanceof ProjectCreationError) {
+        res.status(400).json({
+          status: "error",
+          message: error.message,
+        });
+        return;
+      }
+
+      // ── Erros inesperados → 500 ──────────────────────────────────
+      console.error("[ProjectController] Erro ao buscar projeto:", error);
+      res.status(500).json({
+        status: "error",
+        message: "Ocorreu um erro ao buscar o projeto. Tente novamente mais tarde.",
+      });
+    }
+  };
 }
