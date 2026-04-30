@@ -24,11 +24,40 @@ const projectController = new ProjectController(projectService);
  * /projects:
  *   get:
  *     summary: Lista todos os projetos do construtor logado
- *     description: Retorna lista completa de projetos associados ao usuário autenticado com status e data de última atualização
+ *     description: Retorna lista de projetos associados ao usuário autenticado com filtros opcionais de status, ordenação, limite e busca por nome
  *     tags:
  *       - Projetos
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - name: status
+ *         in: query
+ *         required: false
+ *         schema:
+ *           type: string
+ *           enum: [EM_CONSTRUCAO, ENTREGUE, DESATIVADO]
+ *         description: Filtrar projetos por status
+ *       - name: order
+ *         in: query
+ *         required: false
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
+ *           default: desc
+ *         description: Ordenar projetos por data de última atualização (asc ascendente, desc descendente)
+ *       - name: limit
+ *         in: query
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *         description: Quantidade máxima de registros a retornar
+ *       - name: search
+ *         in: query
+ *         required: false
+ *         schema:
+ *           type: string
+ *         description: Busca parcial pelo nome do projeto (case-insensitive)
  *     responses:
  *       200:
  *         description: Projetos listados com sucesso

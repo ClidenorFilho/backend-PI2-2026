@@ -326,7 +326,7 @@ export class ProjectController {
 
   /**
    * GET /projects
-   * Lista todos os Projetos do Construtor logado.
+   * Lista todos os Projetos do Construtor logado com filtros opcionais.
    */
   list = async (req: Request, res: Response): Promise<void> => {
     // 1. Extrair o ID do Construtor (usuário logado)
@@ -340,11 +340,38 @@ export class ProjectController {
 
     const idConstrutor = req.user.id;
 
-    try {
-      // 2. Chamar o service
-      const projetos = await this.projectService.listProjects(idConstrutor);
+    // 2. Extrair e validar query parameters
+    const { status, order, limit, search } = req.query;
 
-      // 3. Retornar 200 OK com lista de projetos
+    // Validar e converter limit para número
+    let parsedLimit: number | undefined;
+    if (limit) {
+      const limitNum = Number(limit);
+      if (!isNaN(limitNum) && limitNum > 0) {
+        parsedLimit = limitNum;
+      }
+    }
+
+    // Validar order (deve ser 'asc' ou 'desc')
+    const parsedOrder = order === 'asc' ? 'asc' : 'desc';
+
+    // Status deve ser uma string (validação apenas de tipo)
+    const parsedStatus = status ? String(status) : undefined;
+
+    // Search deve ser uma string
+    const parsedSearch = search ? String(search) : undefined;
+
+    try {
+      // 3. Chamar o service com os filtros
+      const projetos = await this.projectService.listProjects({
+        idConstrutor,
+        status: parsedStatus,
+        order: parsedOrder,
+        limit: parsedLimit,
+        search: parsedSearch,
+      });
+
+      // 4. Retornar 200 OK com lista de projetos
       res.status(200).json({
         status: "success",
         message: "Projetos listados com sucesso.",

@@ -371,18 +371,40 @@ export class ProjectService {
   }
 
   /**
-   * Lista todos os Projetos de um Construtor.
-   * Inclui o nome do Construtor (responsável) e ordena por updatedAt decrescente.
-   * @param idConstrutor - ID do Construtor (extraído do token JWT)
+   * Lista todos os Projetos de um Construtor com filtros opcionais.
+   * Filtra por status, ordena por updatedAt, aplica limite e busca por nome.
+   * @param filters - Objeto com { idConstrutor: string, status?: string, order?: 'asc' | 'desc', limit?: number, search?: string }
    * @returns {Promise<Projeto[]>} - Array de projetos com dados do construtor
    * @throws {ProjectCreationError} em caso de erro ao buscar
    */
-  async listProjects(idConstrutor: string): Promise<any[]> {
+  async listProjects(filters: {
+    idConstrutor: string;
+    status?: string;
+    order?: 'asc' | 'desc';
+    limit?: number;
+    search?: string;
+  }): Promise<any[]> {
     try {
+      const { idConstrutor, status, order = 'desc', limit, search } = filters;
+
+      // Construir o objeto where dinamicamente
+      const where: any = {
+        idConstrutor,
+      };
+
+      if (status) {
+        where.status = status;
+      }
+
+      if (search) {
+        where.nomeProjeto = {
+          contains: search,
+          mode: 'insensitive',
+        };
+      }
+
       const projetos = await prisma.projeto.findMany({
-        where: {
-          idConstrutor,
-        },
+        where,
         include: {
           construtor: {
             include: {
@@ -395,8 +417,9 @@ export class ProjectService {
           },
         },
         orderBy: {
-          updatedAt: "desc",
+          updatedAt: order,
         },
+        ...(limit && { take: limit }),
       });
 
       return projetos;
