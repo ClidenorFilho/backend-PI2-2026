@@ -7,6 +7,7 @@ import { Router } from "express";
 import { ProjectController } from "../controllers/ProjectController";
 import { ProjectService } from "../services/ProjectService";
 import { authMiddleware } from "../middlewares/authMiddleware";
+import { requireRole } from "../middlewares/roleMiddleware";
 import { validateCreateProject } from "../middlewares/validateCreateProject";
 import { validateEmployee } from "../middlewares/validateEmployee";
 import { validateUpdateEmployee } from "../middlewares/validateUpdateEmployee";
@@ -200,6 +201,7 @@ router.get(
 router.post(
   "/",
   authMiddleware,
+  requireRole("CONSTRUTOR"),
   validateCreateProject,
   projectController.create
 );
@@ -398,6 +400,7 @@ router.get(
 router.post(
   "/:id/employees",
   authMiddleware,
+  requireRole("CONSTRUTOR"),
   validateEmployee,
   projectController.addEmployee
 );
@@ -480,6 +483,7 @@ router.post(
 router.post(
   "/:id/documents",
   authMiddleware,
+  requireRole("CONSTRUTOR"),
   upload.single("file"),
   projectController.addDocument
 );
@@ -563,6 +567,7 @@ router.post(
 router.put(
   "/:id/employees/:idFunc",
   authMiddleware,
+  requireRole("CONSTRUTOR"),
   validateUpdateEmployee,
   projectController.updateEmployee
 );
@@ -626,6 +631,7 @@ router.put(
 router.delete(
   "/:id/employees/:idFunc",
   authMiddleware,
+  requireRole("CONSTRUTOR"),
   projectController.removeEmployee
 );
 
