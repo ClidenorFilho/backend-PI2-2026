@@ -41,7 +41,10 @@ const fileFilter = (
   if (file.mimetype === "application/pdf") {
     cb(null, true);
   } else {
-    cb(new Error("Apenas arquivos PDF são aceitos."));
+    const err: any = new Error("Apenas arquivos PDF são aceitos.");
+    // Marca o erro para ser identificado no handler global
+    err.code = "INVALID_FILE_TYPE";
+    cb(err);
   }
 };
 
