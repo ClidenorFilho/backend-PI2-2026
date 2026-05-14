@@ -203,11 +203,20 @@ export class AuthService {
           gt: now,
         },
       },
-      select: { id: true },
+      select: { id: true, hashSenha: true },
     });
 
     if (!user) {
       throw new AuthenticationError("Token inválido ou expirado.");
+    }
+
+    // Validação de segurança: impedir reutilização da senha atual
+    const passwordIsSame = await bcryptjs.compare(input.password, user.hashSenha);
+
+    if (passwordIsSame) {
+      throw new AuthenticationError(
+        "A nova senha não pode ser igual à senha atual. Por favor, escolha uma senha diferente."
+      );
     }
 
     const hashedPassword = await bcryptjs.hash(input.password, BCRYPT_SALT_ROUNDS);
