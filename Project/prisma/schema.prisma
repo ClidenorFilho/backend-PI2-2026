@@ -26,6 +26,12 @@ enum StatusManutencao {
   CANCELADA
 }
 
+enum StatusProjeto {
+  EM_CONSTRUCAO
+  ENTREGUE
+  DESATIVADO
+}
+
 // ═════════════════════════════════════════════════════════════════
 // USUÁRIO BASE — herança por tabela concreta (Table-per-Type)
 // ═════════════════════════════════════════════════════════════════
@@ -76,14 +82,23 @@ model Proprietario {
 model Projeto {
   idProjeto      String   @id @default(uuid()) @map("id_projeto")
   idConstrutor   String   @map("id_construtor")
-  idProprietario String   @map("id_proprietario")
+  idProprietario String?  @map("id_proprietario")
   art            String?
   nomeProjeto    String   @map("nome_projeto")
+  descricao      String?
+  rua            String
+  bairro         String
+  numero         String
+  complemento    String?
   dataInicio     DateTime @map("data_inicio")
+  dataConclusao  DateTime? @map("data_conclusao")
   tipoConstrucao String   @map("tipo_construcao")
+  status         StatusProjeto @default(EM_CONSTRUCAO)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at")
 
   construtor   Construtor   @relation("ProjetoConstrutor",   fields: [idConstrutor],   references: [idUser])
-  proprietario Proprietario @relation("ProjetoProprietario", fields: [idProprietario], references: [idUser])
+  proprietario Proprietario? @relation("ProjetoProprietario", fields: [idProprietario], references: [idUser])
 
   andares             Andar[]
   plantas             Planta[]
@@ -128,11 +143,11 @@ model Comodo {
 }
 
 // ═════════════════════════════════════════════════════════════════
-// PLANTA — chave composta (id_planta, id_projeto)
+// PLANTA
 // ═════════════════════════════════════════════════════════════════
 
 model Planta {
-  idPlanta      Int    @map("id_planta")
+  idPlanta      String @id @default(uuid()) @map("id_planta")
   idProjeto     String @map("id_projeto")
   tipoPlanta    String @map("tipo_planta")
   arquivoPlanta String @map("arquivo_planta")
@@ -140,7 +155,6 @@ model Planta {
   projeto    Projeto     @relation(fields: [idProjeto], references: [idProjeto], onDelete: Cascade)
   alteracoes Alteracao[]
 
-  @@id([idPlanta, idProjeto])
   @@map("planta")
 }
 
@@ -185,9 +199,8 @@ model Alteracao {
   idAndar         Int    @map("id_andar")
   idProjetoComodo String @map("id_projeto_comodo")
 
-  // FK composta → Planta
-  idPlanta        Int    @map("id_planta")
-  idProjetoPlanta String @map("id_projeto_planta")
+  // FK simples → Planta
+  idPlanta        String @map("id_planta")
 
   // FKs simples
   idFunc          String @map("id_func")
@@ -199,7 +212,7 @@ model Alteracao {
   dataAlteracao      DateTime @default(now()) @map("data_alteracao")
 
   comodo      Comodo          @relation(fields: [idComodo, idAndar, idProjetoComodo], references: [idComodo, idAndar, idProjeto])
-  planta      Planta          @relation(fields: [idPlanta, idProjetoPlanta],          references: [idPlanta, idProjeto])
+  planta      Planta          @relation(fields: [idPlanta],          references: [idPlanta])
   funcionario FuncionarioObra @relation(fields: [idFunc],       references: [idFunc])
   construtor  Construtor      @relation(fields: [idConstrutor], references: [idUser])
 

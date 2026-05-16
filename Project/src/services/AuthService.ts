@@ -79,10 +79,11 @@ let cachedMailer:
 export class AuthService {
   /**
    * Autentica um usuário com e-mail, senha e perfil.
-   * @throws {AuthenticationError} se e-mail ou senha forem inválidos.
-   * @throws {ProfileMismatchError} se o perfil informado não corresponder.
+   * @throws {AuthenticationError} se e-mail, senha ou perfil forem inválidos.
    */
   async login(input: LoginInput): Promise<AuthenticatedUser> {
+    const loginErrorMessage = "E-mail, senha ou perfil inválidos.";
+
     // 1. Buscar usuário pelo e-mail
     const user = await prisma.user.findUnique({
       where: { email: input.email },
@@ -95,28 +96,22 @@ export class AuthService {
 
     // 2. Verificar se usuário existe
     if (!user) {
-      throw new AuthenticationError(
-        "E-mail ou senha inválidos."
-      );
+      throw new AuthenticationError(loginErrorMessage);
     }
 
-    // 3. Validar perfil informado
-    if (user.profile !== input.profile) {
-      throw new ProfileMismatchError(
-        "O perfil informado não corresponde ao cadastro. Verifique sua seleção."
-      );
-    }
-
-    // 4. Comparar senha com bcrypt
+    // 3. Comparar senha com bcrypt
     const passwordMatch = await bcrypt.compare(
       input.password,
       user.hashSenha
     );
 
     if (!passwordMatch) {
-      throw new AuthenticationError(
-        "E-mail ou senha inválidos."
-      );
+      throw new AuthenticationError(loginErrorMessage);
+    }
+
+    // 4. Validar perfil informado
+    if (user.profile !== input.profile) {
+      throw new AuthenticationError(loginErrorMessage);
     }
 
     // 5. Para CONSTRUTOR, validar também o CREA informado no login
@@ -125,7 +120,7 @@ export class AuthService {
       const storedCrea = user.construtor?.crea?.trim();
 
       if (!providedCrea || !storedCrea || providedCrea !== storedCrea) {
-        throw new AuthenticationError("E-mail ou senha inválidos.");
+        throw new AuthenticationError(loginErrorMessage);
       }
     }
 
@@ -208,11 +203,20 @@ export class AuthService {
           gt: now,
         },
       },
-      select: { id: true },
+      select: { id: true, hashSenha: true },
     });
 
     if (!user) {
       throw new AuthenticationError("Token inválido ou expirado.");
+    }
+
+    // Validação de segurança: impedir reutilização da senha atual
+    const passwordIsSame = await bcryptjs.compare(input.password, user.hashSenha);
+
+    if (passwordIsSame) {
+      throw new AuthenticationError(
+        "A nova senha não pode ser igual à senha atual. Por favor, escolha uma senha diferente."
+      );
     }
 
     const hashedPassword = await bcryptjs.hash(input.password, BCRYPT_SALT_ROUNDS);
