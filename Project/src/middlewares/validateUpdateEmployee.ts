@@ -19,8 +19,12 @@ const updateEmployeeSchema = z.object({
 
   cargo: z
     .string()
-    .min(3, { message: "O cargo deve ter no mínimo 3 caracteres." })
     .trim()
+    .min(3, { message: "O cargo deve ter no mínimo 3 caracteres." })
+    .regex(/^[A-Za-zÀ-ÿ]+(?:\s+[A-Za-zÀ-ÿ]+)*$/, {
+      message:
+        "O cargo deve conter apenas letras (incluindo acentos) e espaços entre palavras.",
+    })
     .optional(),
 }).refine(
   (data) => data.nomeFunc || data.cargo,

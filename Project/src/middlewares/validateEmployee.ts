@@ -18,9 +18,12 @@ const addEmployeeSchema = z.object({
 
   cargo: z
     .string({ required_error: "O campo 'cargo' é obrigatório." })
-    .min(1, { message: "O campo 'cargo' não pode estar vazio." })
+    .trim()
     .min(3, { message: "O cargo deve ter no mínimo 3 caracteres." })
-    .trim(),
+    .regex(/^[A-Za-zÀ-ÿ]+(?:\s+[A-Za-zÀ-ÿ]+)*$/, {
+      message:
+        "O cargo deve conter apenas letras (incluindo acentos) e espaços entre palavras.",
+    }),
 });
 
 // ── Tipo exportado para uso no Controller / Service ───────────────
