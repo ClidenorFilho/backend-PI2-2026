@@ -82,6 +82,20 @@ export class ProjectService {
       );
     }
 
+    // 2. Verificar se a ART informada já pertence a outro projeto
+    if (data.art && data.art.trim() !== "") {
+      const existingProjectWithArt = await prisma.projeto.findFirst({
+        where: { art: data.art.trim() },
+        select: { idProjeto: true },
+      });
+
+      if (existingProjectWithArt) {
+        throw new ProjectCreationError(
+          "Já existe um projeto cadastrado com este número de ART."
+        );
+      }
+    }
+
     // 2. Inserir o Projeto no banco
     try {
       const projeto = await prisma.projeto.create({
