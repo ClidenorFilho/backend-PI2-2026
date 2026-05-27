@@ -11,6 +11,7 @@ import { requireRole } from "../middlewares/roleMiddleware";
 import { validateCreateProject } from "../middlewares/validateCreateProject";
 import { validateEmployee } from "../middlewares/validateEmployee";
 import { validateUpdateEmployee } from "../middlewares/validateUpdateEmployee";
+import { validateUpdateProject } from "../middlewares/validateUpdateProject";
 import upload from "../config/multer";
 
 const router = Router();
@@ -204,6 +205,15 @@ router.post(
   requireRole("CONSTRUTOR"),
   validateCreateProject,
   projectController.create
+);
+
+// ==================== PUT /projects/:id ====================
+router.put(
+  "/:id",
+  authMiddleware,
+  requireRole("CONSTRUTOR"),
+  validateUpdateProject,
+  projectController.updateProject
 );
 
 // ==================== GET /projects/:id ====================
