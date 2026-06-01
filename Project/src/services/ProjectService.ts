@@ -10,7 +10,34 @@ import { prisma } from "../lib/prisma";
 import { CreateProjectInput } from "../middlewares/validateCreateProject";
 import { AddEmployeeInput } from "../middlewares/validateEmployee";
 import { UpdateEmployeeInput } from "../middlewares/validateUpdateEmployee";
-import { Projeto, FuncionarioObra, Planta } from "@prisma/client";
+import { Prisma, Projeto, FuncionarioObra, Planta } from "@prisma/client";
+
+const projectDetailsInclude = {
+  plantas: true,
+  funcionariosProjeto: {
+    include: {
+      funcionario: true,
+    },
+  },
+  andares: {
+    include: {
+      comodos: true,
+    },
+  },
+} as const;
+
+export type ProjectDetails = Prisma.ProjetoGetPayload<{
+  include: typeof projectDetailsInclude;
+}>;
+
+type UpdateProjectData = {
+  descricao?: string;
+  rua?: string;
+  bairro?: string;
+  numero?: string;
+  complemento?: string;
+  dataConclusao?: Date;
+};
 
 // ── Erros customizados ────────────────────────────────────────────
 
@@ -464,18 +491,11 @@ export class ProjectService {
   async getProjectById(
     idProjeto: string,
     idConstrutor: string
-  ): Promise<any> {
+  ): Promise<ProjectDetails> {
     try {
       const projeto = await prisma.projeto.findUnique({
         where: { idProjeto },
-        include: {
-          plantas: true,
-          funcionariosProjeto: {
-            include: {
-              funcionario: true,
-            },
-          },
-        },
+        include: projectDetailsInclude,
       });
 
       // Validar se o projeto existe E pertence ao construtor logado
@@ -502,6 +522,65 @@ export class ProjectService {
 
       throw new ProjectCreationError(
         "Erro desconhecido ao buscar projeto. Tente novamente mais tarde."
+      );
+    }
+  }
+
+  /**
+   * Atualiza dados cadastrais de um Projeto.
+   * Permite alterar endereço, descrição e datas.
+   */
+  async updateProject(
+    idProjeto: string,
+    idConstrutor: string,
+    data: UpdateProjectData
+  ): Promise<ProjectDetails> {
+    try {
+      const projetoExistente = await prisma.projeto.findUnique({
+        where: { idProjeto },
+        select: {
+          idProjeto: true,
+          idConstrutor: true,
+        },
+      });
+
+      if (!projetoExistente || projetoExistente.idConstrutor !== idConstrutor) {
+        throw new ProjectNotFoundError(
+          "Projeto não encontrado ou você não tem permissão para atualizá-lo."
+        );
+      }
+
+      const projetoAtualizado = await prisma.projeto.update({
+        where: { idProjeto },
+        data: {
+          ...(data.descricao !== undefined && { descricao: data.descricao }),
+          ...(data.rua !== undefined && { rua: data.rua }),
+          ...(data.bairro !== undefined && { bairro: data.bairro }),
+          ...(data.numero !== undefined && { numero: data.numero }),
+          ...(data.complemento !== undefined && { complemento: data.complemento }),
+          ...(data.dataConclusao !== undefined && {
+            dataConclusao: data.dataConclusao,
+          }),
+        },
+        include: projectDetailsInclude,
+      });
+
+      return projetoAtualizado;
+    } catch (error) {
+      if (error instanceof ProjectNotFoundError) {
+        throw error;
+      }
+
+      console.error("[ProjectService] Erro ao atualizar projeto:", error);
+
+      if (error instanceof Error) {
+        throw new ProjectCreationError(
+          `Erro ao atualizar projeto: ${error.message}`
+        );
+      }
+
+      throw new ProjectCreationError(
+        "Erro desconhecido ao atualizar projeto. Tente novamente mais tarde."
       );
     }
   }

@@ -17,13 +17,57 @@ import {
   EmployeeCreationError,
   DocumentUploadError,
   EmployeeNotFoundError,
+  ProjectDetails,
 } from "../services/ProjectService";
 import { CreateProjectInput } from "../middlewares/validateCreateProject";
 import { AddEmployeeInput } from "../middlewares/validateEmployee";
 import { UpdateEmployeeInput } from "../middlewares/validateUpdateEmployee";
+import { UpdateProjectInput } from "../middlewares/validateUpdateProject";
 
 export class ProjectController {
   constructor(private readonly projectService: ProjectService) {}
+
+  private formatProjectDetails(projeto: ProjectDetails) {
+    return {
+      id: projeto.idProjeto,
+      nomeProjeto: projeto.nomeProjeto,
+      descricao: projeto.descricao,
+      status: projeto.status,
+      tipoConstrucao: projeto.tipoConstrucao,
+      art: projeto.art,
+      endereco: {
+        rua: projeto.rua,
+        bairro: projeto.bairro,
+        numero: projeto.numero,
+        complemento: projeto.complemento,
+      },
+      datas: {
+        dataInicio: projeto.dataInicio,
+        dataConclusao: projeto.dataConclusao,
+        criadoEm: projeto.createdAt,
+        ultimaAtualizacao: projeto.updatedAt,
+      },
+      plantas: projeto.plantas.map((planta) => ({
+        id: planta.idPlanta,
+        tipo: planta.tipoPlanta,
+        arquivo: planta.arquivoPlanta,
+      })),
+      andares: projeto.andares.map((andar) => ({
+        id: andar.idAndar,
+        nome: andar.nomeAndar,
+        comodos: andar.comodos.map((comodo) => ({
+          id: comodo.idComodo,
+          nome: comodo.nomeComodo,
+        })),
+      })),
+      funcionarios: projeto.funcionariosProjeto.map((vinculo) => ({
+        id: vinculo.funcionario.idFunc,
+        nome: vinculo.funcionario.nomeFunc,
+        cargo: vinculo.funcionario.cargo,
+        dataAlocacao: vinculo.dataAlocacao,
+      })),
+    };
+  }
 
   /**
    * POST /projects
@@ -85,6 +129,60 @@ export class ProjectController {
       res.status(500).json({
         status: "error",
         message: "Ocorreu um erro ao criar o projeto. Tente novamente mais tarde.",
+      });
+    }
+  };
+
+  /**
+   * PUT /projects/:id
+   * Atualiza endereço, descrição e datas do projeto.
+   */
+  updateProject = async (req: Request, res: Response): Promise<void> => {
+    if (!req.user || !req.user.id) {
+      res.status(401).json({
+        status: "error",
+        message: "Usuário não autenticado. Realize o login primeiro.",
+      });
+      return;
+    }
+
+    const idConstrutor = req.user.id;
+    const { id: idProjeto } = req.params;
+    const data = req.body as UpdateProjectInput;
+
+    try {
+      const projeto = await this.projectService.updateProject(
+        idProjeto,
+        idConstrutor,
+        data
+      );
+
+      res.status(200).json({
+        status: "success",
+        message: "Projeto atualizado com sucesso.",
+        data: this.formatProjectDetails(projeto),
+      });
+    } catch (error) {
+      if (error instanceof ProjectNotFoundError) {
+        res.status(404).json({
+          status: "error",
+          message: error.message,
+        });
+        return;
+      }
+
+      if (error instanceof ProjectCreationError) {
+        res.status(400).json({
+          status: "error",
+          message: error.message,
+        });
+        return;
+      }
+
+      console.error("[ProjectController] Erro ao atualizar projeto:", error);
+      res.status(500).json({
+        status: "error",
+        message: "Ocorreu um erro ao atualizar o projeto. Tente novamente mais tarde.",
       });
     }
   };
@@ -430,37 +528,7 @@ export class ProjectController {
       res.status(200).json({
         status: "success",
         message: "Projeto encontrado com sucesso.",
-        data: {
-          id: projeto.idProjeto,
-          nomeProjeto: projeto.nomeProjeto,
-          descricao: projeto.descricao,
-          status: projeto.status,
-          tipoConstrucao: projeto.tipoConstrucao,
-          art: projeto.art,
-          endereco: {
-            rua: projeto.rua,
-            bairro: projeto.bairro,
-            numero: projeto.numero,
-            complemento: projeto.complemento,
-          },
-          datas: {
-            dataInicio: projeto.dataInicio,
-            dataConclusao: projeto.dataConclusao,
-            criadoEm: projeto.createdAt,
-            ultimaAtualizacao: projeto.updatedAt,
-          },
-          plantas: projeto.plantas.map((planta:any) => ({
-            id: planta.idPlanta,
-            tipo: planta.tipoPlanta,
-            arquivo: planta.arquivoPlanta,
-          })),
-          funcionarios: projeto.funcionariosProjeto.map((vínculo:any) => ({
-            id: vínculo.funcionario.idFunc,
-            nome: vínculo.funcionario.nomeFunc,
-            cargo: vínculo.funcionario.cargo,
-            dataAlocacao: vínculo.dataAlocacao,
-          })),
-        },
+        data: this.formatProjectDetails(projeto),
       });
     } catch (error) {
       // ── Projeto não encontrado ────────────────────────────────────
