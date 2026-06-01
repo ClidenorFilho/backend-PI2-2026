@@ -208,6 +208,70 @@ router.post(
 );
 
 // ==================== PUT /projects/:id ====================
+/**
+ * @swagger
+ * /projects/{id}:
+ *   put:
+ *     summary: Atualiza um projeto existente
+ *     description: Atualiza as informações cadastrais de um projeto existente. Campos no body são opcionais, apenas os fornecidos serão atualizados.
+ *     tags:
+ *       - Projetos
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: UUID do projeto a ser atualizado
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               descricao:
+ *                 type: string
+ *               rua:
+ *                 type: string
+ *               bairro:
+ *                 type: string
+ *               numero:
+ *                 type: string
+ *               complemento:
+ *                 type: string
+ *               dataEntrega:
+ *                 type: string
+ *                 format: date
+ *             description: Campos opcionais para atualização do projeto
+ *     responses:
+ *       200:
+ *         description: Projeto atualizado com sucesso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 message:
+ *                   type: string
+ *                   example: Projeto atualizado com sucesso
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                       format: uuid
+ *       400:
+ *         description: Erro de validação
+ *       404:
+ *         description: Projeto não encontrado
+ */
 router.put(
   "/:id",
   authMiddleware,
