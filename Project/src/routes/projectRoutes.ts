@@ -12,6 +12,7 @@ import { validateCreateProject } from "../middlewares/validateCreateProject";
 import { validateEmployee } from "../middlewares/validateEmployee";
 import { validateUpdateEmployee } from "../middlewares/validateUpdateEmployee";
 import { validateUpdateProject } from "../middlewares/validateUpdateProject";
+import { validateCreateRoom } from "../middlewares/validateCreateRoom";
 import upload from "../config/multer";
 
 const router = Router();
@@ -278,6 +279,86 @@ router.put(
   requireRole("CONSTRUTOR"),
   validateUpdateProject,
   projectController.updateProject
+);
+
+// ==================== POST /projects/:id/rooms ====================
+/**
+ * @swagger
+ * /projects/{id}/rooms:
+ *   post:
+ *     summary: Adiciona um andar e um cômodo ao projeto
+ *     description: Cria o andar caso ele ainda não exista no projeto e adiciona um novo cômodo com ID sequencial no andar correspondente
+ *     tags:
+ *       - Projetos
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: ID do projeto
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               nomeAndar:
+ *                 type: string
+ *                 example: Térreo
+ *                 description: Nome do andar a ser criado ou reutilizado
+ *               nomeComodo:
+ *                 type: string
+ *                 example: Sala de Estar
+ *                 description: Nome do cômodo a ser criado no andar
+ *             required:
+ *               - nomeAndar
+ *               - nomeComodo
+ *     responses:
+ *       201:
+ *         description: Andar e cômodo criados com sucesso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 message:
+ *                   type: string
+ *                   example: Cômodo adicionado ao projeto com sucesso
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     idComodo:
+ *                       type: integer
+ *                     idAndar:
+ *                       type: integer
+ *                     idProjeto:
+ *                       type: string
+ *                       format: uuid
+ *                     nomeAndar:
+ *                       type: string
+ *                     nomeComodo:
+ *                       type: string
+ *       400:
+ *         description: Erro na validação dos dados ou ao criar o cômodo
+ *       404:
+ *         description: Projeto não encontrado ou usuário sem permissão de acesso
+ *       401:
+ *         description: Usuário não autenticado ou token inválido
+ */
+router.post(
+  "/:id/rooms",
+  authMiddleware,
+  requireRole("CONSTRUTOR"),
+  validateCreateRoom,
+  projectController.addRoom
 );
 
 // ==================== GET /projects/:id ====================
