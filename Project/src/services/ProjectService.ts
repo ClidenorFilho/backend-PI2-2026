@@ -10,7 +10,8 @@ import { prisma } from "../lib/prisma";
 import { CreateProjectInput } from "../middlewares/validateCreateProject";
 import { AddEmployeeInput } from "../middlewares/validateEmployee";
 import { UpdateEmployeeInput } from "../middlewares/validateUpdateEmployee";
-import { Prisma, Projeto, FuncionarioObra, Planta } from "@prisma/client";
+import { CreateRoomInput } from "../middlewares/validateCreateRoom";
+import { Prisma, Projeto, FuncionarioObra, Planta, Comodo } from "@prisma/client";
 
 const projectDetailsInclude = {
   plantas: true,
@@ -73,6 +74,13 @@ export class DocumentUploadError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "DocumentUploadError";
+  }
+}
+
+export class RoomCreationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "RoomCreationError";
   }
 }
 
@@ -260,6 +268,104 @@ export class ProjectService {
 
       throw new DocumentUploadError(
         "Erro desconhecido ao adicionar documento. Tente novamente mais tarde."
+      );
+    }
+  }
+
+  /**
+   * Adiciona um andar e um cômodo a um projeto pertencente ao construtor.
+   * Se o andar já existir com o mesmo nome, reaproveita o registro existente.
+   * @param idProjeto - ID do projeto
+   * @param idConstrutor - ID do construtor logado
+   * @param data - Dados validados (nomeAndar, nomeComodo)
+   * @returns {Promise<Comodo>} - O cômodo criado com sua chave composta
+   * @throws {ProjectNotFoundError} se o projeto não existir ou não pertencer ao construtor
+   * @throws {RoomCreationError} em caso de erro ao criar o andar/cômodo
+   */
+  async addRoom(
+    idProjeto: string,
+    idConstrutor: string,
+    data: CreateRoomInput
+  ): Promise<Comodo> {
+    const projeto = await prisma.projeto.findFirst({
+      where: {
+        idProjeto,
+        idConstrutor,
+      },
+      select: {
+        idProjeto: true,
+      },
+    });
+
+    if (!projeto) {
+      throw new ProjectNotFoundError(
+        "Projeto não encontrado ou você não tem permissão para acessá-lo."
+      );
+    }
+
+    try {
+      const comodo = await prisma.$transaction(async (tx) => {
+        const nomeAndar = data.nomeAndar.trim();
+        const nomeComodo = data.nomeComodo.trim();
+
+        let andar = await tx.andar.findFirst({
+          where: {
+            idProjeto,
+            nomeAndar,
+          },
+        });
+
+        if (!andar) {
+          const ultimoAndar = await tx.andar.findFirst({
+            where: { idProjeto },
+            orderBy: { idAndar: "desc" },
+            select: { idAndar: true },
+          });
+
+          const novoIdAndar = (ultimoAndar?.idAndar ?? 0) + 1;
+
+          andar = await tx.andar.create({
+            data: {
+              idAndar: novoIdAndar,
+              idProjeto,
+              nomeAndar,
+            },
+          });
+        }
+
+        const ultimoComodo = await tx.comodo.findFirst({
+          where: {
+            idProjeto,
+            idAndar: andar.idAndar,
+          },
+          orderBy: { idComodo: "desc" },
+          select: { idComodo: true },
+        });
+
+        const novoIdComodo = (ultimoComodo?.idComodo ?? 0) + 1;
+
+        return tx.comodo.create({
+          data: {
+            idComodo: novoIdComodo,
+            idAndar: andar.idAndar,
+            idProjeto,
+            nomeComodo,
+          },
+        });
+      });
+
+      return comodo;
+    } catch (error) {
+      console.error("[ProjectService] Erro ao adicionar cômodo:", error);
+
+      if (error instanceof Error) {
+        throw new RoomCreationError(
+          `Erro ao adicionar cômodo: ${error.message}`
+        );
+      }
+
+      throw new RoomCreationError(
+        "Erro desconhecido ao adicionar cômodo. Tente novamente mais tarde."
       );
     }
   }

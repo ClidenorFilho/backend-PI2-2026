@@ -18,11 +18,13 @@ import {
   DocumentUploadError,
   EmployeeNotFoundError,
   ProjectDetails,
+  RoomCreationError,
 } from "../services/ProjectService";
 import { CreateProjectInput } from "../middlewares/validateCreateProject";
 import { AddEmployeeInput } from "../middlewares/validateEmployee";
 import { UpdateEmployeeInput } from "../middlewares/validateUpdateEmployee";
 import { UpdateProjectInput } from "../middlewares/validateUpdateProject";
+import { CreateRoomInput } from "../middlewares/validateCreateRoom";
 
 export class ProjectController {
   constructor(private readonly projectService: ProjectService) {}
@@ -306,6 +308,66 @@ export class ProjectController {
       res.status(500).json({
         status: "error",
         message: "Ocorreu um erro ao anexar o documento. Tente novamente mais tarde.",
+      });
+    }
+  };
+
+  /**
+   * POST /projects/:id/rooms
+   * Adiciona um andar e um cômodo a um projeto.
+   */
+  addRoom = async (req: Request, res: Response): Promise<void> => {
+    if (!req.user || !req.user.id) {
+      res.status(401).json({
+        status: "error",
+        message: "Usuário não autenticado. Realize o login primeiro.",
+      });
+      return;
+    }
+
+    const { id: idProjeto } = req.params;
+    const idConstrutor = req.user.id;
+    const data = req.body as CreateRoomInput;
+
+    try {
+      const comodo = await this.projectService.addRoom(
+        idProjeto,
+        idConstrutor,
+        data
+      );
+
+      res.status(201).json({
+        status: "success",
+        message: "Cômodo adicionado ao projeto com sucesso.",
+        data: {
+          idComodo: comodo.idComodo,
+          idAndar: comodo.idAndar,
+          idProjeto: comodo.idProjeto,
+          nomeAndar: data.nomeAndar,
+          nomeComodo: comodo.nomeComodo,
+        },
+      });
+    } catch (error) {
+      if (error instanceof ProjectNotFoundError) {
+        res.status(404).json({
+          status: "error",
+          message: error.message,
+        });
+        return;
+      }
+
+      if (error instanceof RoomCreationError) {
+        res.status(400).json({
+          status: "error",
+          message: error.message,
+        });
+        return;
+      }
+
+      console.error("[ProjectController] Erro ao adicionar cômodo:", error);
+      res.status(500).json({
+        status: "error",
+        message: "Ocorreu um erro ao adicionar o cômodo. Tente novamente mais tarde.",
       });
     }
   };
