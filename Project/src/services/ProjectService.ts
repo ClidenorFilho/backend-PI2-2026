@@ -31,6 +31,15 @@ export type ProjectDetails = Prisma.ProjetoGetPayload<{
   include: typeof projectDetailsInclude;
 }>;
 
+export type ProjectRooms = Array<{
+  idAndar: number;
+  nomeAndar: string;
+  comodos: Array<{
+    idComodo: number;
+    nomeComodo: string;
+  }>;
+}>;
+
 type UpdateProjectData = {
   descricao?: string;
   rua?: string;
@@ -628,6 +637,76 @@ export class ProjectService {
 
       throw new ProjectCreationError(
         "Erro desconhecido ao buscar projeto. Tente novamente mais tarde."
+      );
+    }
+  }
+
+  /**
+   * Busca andares e cômodos de um Projeto específico, garantindo que pertence ao Construtor.
+   * Retorna apenas os campos necessários para alimentar selects no Front-end.
+   * @param idProjeto - ID do projeto
+   * @param idConstrutor - ID do Construtor (extraído do token JWT)
+   * @returns {Promise<ProjectRooms>} - Lista de andares com seus cômodos
+   * @throws {ProjectNotFoundError} se o projeto não existir ou não pertencer ao construtor
+   * @throws {ProjectCreationError} em caso de erro ao buscar
+   */
+  async getProjectRooms(
+    idProjeto: string,
+    idConstrutor: string
+  ): Promise<ProjectRooms> {
+    try {
+      const projeto = await prisma.projeto.findFirst({
+        where: {
+          idProjeto,
+          idConstrutor,
+        },
+        select: {
+          idProjeto: true,
+        },
+      });
+
+      if (!projeto) {
+        throw new ProjectNotFoundError(
+          "Projeto não encontrado ou você não tem permissão para acessá-lo."
+        );
+      }
+
+      const andares = await prisma.andar.findMany({
+        where: { idProjeto },
+        select: {
+          idAndar: true,
+          nomeAndar: true,
+          comodos: {
+            select: {
+              idComodo: true,
+              nomeComodo: true,
+            },
+            orderBy: {
+              idComodo: "asc",
+            },
+          },
+        },
+        orderBy: {
+          idAndar: "asc",
+        },
+      });
+
+      return andares;
+    } catch (error) {
+      if (error instanceof ProjectNotFoundError) {
+        throw error;
+      }
+
+      console.error("[ProjectService] Erro ao buscar andares e cômodos:", error);
+
+      if (error instanceof Error) {
+        throw new ProjectCreationError(
+          `Erro ao buscar andares e cômodos: ${error.message}`
+        );
+      }
+
+      throw new ProjectCreationError(
+        "Erro desconhecido ao buscar andares e cômodos. Tente novamente mais tarde."
       );
     }
   }
