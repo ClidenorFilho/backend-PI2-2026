@@ -6,12 +6,14 @@
 //   3. Retornar dados do projeto criado com sucesso
 // ─────────────────────────────────────────────────────────────────
 
+import path from "path";
 import { prisma } from "../lib/prisma";
 import { CreateProjectInput } from "../middlewares/validateCreateProject";
 import { AddEmployeeInput } from "../middlewares/validateEmployee";
 import { UpdateEmployeeInput } from "../middlewares/validateUpdateEmployee";
 import { CreateRoomInput } from "../middlewares/validateCreateRoom";
-import { Prisma, Projeto, FuncionarioObra, Planta, Comodo } from "@prisma/client";
+import { CreateAlterationInput } from "../middlewares/validateCreateAlteration";
+import { Prisma, Projeto, FuncionarioObra, Planta, Comodo, AreaAlteracao } from "@prisma/client";
 
 const projectDetailsInclude = {
   plantas: true,
@@ -47,6 +49,28 @@ type UpdateProjectData = {
   numero?: string;
   complemento?: string;
   dataConclusao?: Date;
+};
+
+export type CreateAlterationFiles = {
+  fotos?: Express.Multer.File[];
+  planta?: Express.Multer.File[];
+};
+
+export type CreateAlterationResult = {
+  idAlteracao: string;
+  idProjeto: string;
+  idAndar: number;
+  idComodo: number;
+  idPlanta: string | null;
+  nomeAlteracao: string;
+  descricaoAlteracao: string;
+  areaAlteracao: AreaAlteracao;
+  dataAlteracao: Date;
+  funcionariosIds: string[];
+  fotos: Array<{
+    idFoto: string;
+    urlDaFoto: string;
+  }>;
 };
 
 // ── Erros customizados ────────────────────────────────────────────
@@ -93,12 +117,29 @@ export class RoomCreationError extends Error {
   }
 }
 
+export class RoomNotFoundError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "RoomNotFoundError";
+  }
+}
+
 export class EmployeeNotFoundError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "EmployeeNotFoundError";
   }
 }
+
+export class AlterationCreationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AlterationCreationError";
+  }
+}
+
+const toRelativeUploadPath = (absolutePath: string): string =>
+  path.relative(process.cwd(), absolutePath).split(path.sep).join("/");
 
 // ── Service ───────────────────────────────────────────────────────
 
@@ -277,6 +318,214 @@ export class ProjectService {
 
       throw new DocumentUploadError(
         "Erro desconhecido ao adicionar documento. Tente novamente mais tarde."
+      );
+    }
+  }
+
+  /**
+   * Registra uma Alteração em um Projeto com planta opcional, fotos e vínculo com funcionários.
+   */
+  async createAlteration(
+    idProjeto: string,
+    idConstrutor: string,
+    data: CreateAlterationInput,
+    files: CreateAlterationFiles
+  ): Promise<CreateAlterationResult> {
+    try {
+      return await prisma.$transaction(async (tx) => {
+        const projeto = await tx.projeto.findFirst({
+          where: {
+            idProjeto,
+            idConstrutor,
+          },
+          select: {
+            idProjeto: true,
+          },
+        });
+
+        if (!projeto) {
+          throw new ProjectNotFoundError(
+            "Projeto não encontrado ou você não tem permissão para acessá-lo."
+          );
+        }
+
+        const andar = await tx.andar.findFirst({
+          where: {
+            idProjeto,
+            idAndar: data.idAndar,
+          },
+          select: {
+            idAndar: true,
+          },
+        });
+
+        if (!andar) {
+          throw new RoomNotFoundError(
+            `O andar informado (${data.idAndar}) não existe neste projeto.`
+          );
+        }
+
+        const comodo = await tx.comodo.findFirst({
+          where: {
+            idProjeto,
+            idAndar: data.idAndar,
+            idComodo: data.idComodo,
+          },
+          select: {
+            idComodo: true,
+          },
+        });
+
+        if (!comodo) {
+          throw new RoomNotFoundError(
+            `O cômodo informado (${data.idComodo}) não existe no andar ${data.idAndar} deste projeto.`
+          );
+        }
+
+        const funcionariosIdsUnicos = Array.from(
+          new Set(data.funcionariosIds.map((id) => String(id).trim()).filter(Boolean))
+        );
+
+        const funcionariosEncontrados = await tx.funcionarioObra.findMany({
+          where: {
+            idFunc: {
+              in: funcionariosIdsUnicos,
+            },
+          },
+          select: {
+            idFunc: true,
+          },
+        });
+
+        if (funcionariosEncontrados.length !== funcionariosIdsUnicos.length) {
+          const encontrados = new Set(funcionariosEncontrados.map((funcionario) => funcionario.idFunc));
+          const faltantes = funcionariosIdsUnicos.filter((idFunc) => !encontrados.has(idFunc));
+
+          throw new EmployeeNotFoundError(
+            `Os seguintes funcionários não foram encontrados no banco: ${faltantes.join(", ")}.`
+          );
+        }
+
+        const funcionariosProjeto = await tx.funcionarioProjeto.findMany({
+          where: {
+            idProjeto,
+            idFunc: {
+              in: funcionariosIdsUnicos,
+            },
+          },
+          select: {
+            idFunc: true,
+          },
+        });
+
+        if (funcionariosProjeto.length !== funcionariosIdsUnicos.length) {
+          const vinculados = new Set(funcionariosProjeto.map((vinculo) => vinculo.idFunc));
+          const naoVinculados = funcionariosIdsUnicos.filter((idFunc) => !vinculados.has(idFunc));
+
+          throw new EmployeeNotFoundError(
+            `Os seguintes funcionários não estão vinculados ao projeto: ${naoVinculados.join(", ")}.`
+          );
+        }
+
+        const plantaArquivo = files.planta?.[0];
+        const fotosArquivos = files.fotos ?? [];
+
+        const plantaCriada = plantaArquivo
+          ? await tx.planta.create({
+              data: {
+                idProjeto,
+                tipoPlanta: data.areaAlteracao,
+                arquivoPlanta: toRelativeUploadPath(plantaArquivo.path),
+              },
+              select: {
+                idPlanta: true,
+              },
+            })
+          : null;
+
+        const funcionarioPrincipal = funcionariosIdsUnicos[0];
+
+        const alteracao = await tx.alteracao.create({
+          data: {
+            idComodo: data.idComodo,
+            idAndar: data.idAndar,
+            idProjetoComodo: idProjeto,
+            idPlanta: plantaCriada?.idPlanta ?? null,
+            idFunc: funcionarioPrincipal,
+            idConstrutor,
+            nomeAlteracao: data.nomeAlteracao,
+            descricaoAlteracao: data.descricao,
+            area: data.areaAlteracao,
+            dataAlteracao: data.dataAlteracao,
+          },
+          select: {
+            idAlteracao: true,
+            idProjetoComodo: true,
+            idAndar: true,
+            idComodo: true,
+            idPlanta: true,
+            nomeAlteracao: true,
+            descricaoAlteracao: true,
+            area: true,
+            dataAlteracao: true,
+          },
+        });
+
+        await tx.alteracaoFuncionario.createMany({
+          data: funcionariosIdsUnicos.map((idFunc) => ({
+            idAlteracao: alteracao.idAlteracao,
+            idFunc,
+          })),
+        });
+
+        const fotosCriadas = await Promise.all(
+          fotosArquivos.map((foto) =>
+            tx.fotoAlteracao.create({
+              data: {
+                idAlteracao: alteracao.idAlteracao,
+                urlDaFoto: toRelativeUploadPath(foto.path),
+              },
+              select: {
+                idFoto: true,
+                urlDaFoto: true,
+              },
+            })
+          )
+        );
+
+        return {
+          idAlteracao: alteracao.idAlteracao,
+          idProjeto: alteracao.idProjetoComodo,
+          idAndar: alteracao.idAndar,
+          idComodo: alteracao.idComodo,
+          idPlanta: alteracao.idPlanta,
+          nomeAlteracao: alteracao.nomeAlteracao,
+          descricaoAlteracao: alteracao.descricaoAlteracao,
+          areaAlteracao: alteracao.area,
+          dataAlteracao: alteracao.dataAlteracao,
+          funcionariosIds: funcionariosIdsUnicos,
+          fotos: fotosCriadas,
+        };
+      });
+    } catch (error) {
+      if (
+        error instanceof ProjectNotFoundError ||
+        error instanceof RoomNotFoundError ||
+        error instanceof EmployeeNotFoundError
+      ) {
+        throw error;
+      }
+
+      console.error("[ProjectService] Erro ao registrar alteração:", error);
+
+      if (error instanceof Error) {
+        throw new AlterationCreationError(
+          `Erro ao registrar a alteração: ${error.message}`
+        );
+      }
+
+      throw new AlterationCreationError(
+        "Erro desconhecido ao registrar a alteração. Tente novamente mais tarde."
       );
     }
   }

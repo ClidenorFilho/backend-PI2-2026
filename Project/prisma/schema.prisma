@@ -176,6 +176,7 @@ model FuncionarioObra {
 
   projetos   FuncionarioProjeto[]
   alteracoes Alteracao[]
+  alteracoesVinculadas AlteracaoFuncionario[]
 
   @@map("funcionario_obra")
 }
@@ -223,8 +224,20 @@ model Alteracao {
   funcionario FuncionarioObra @relation(fields: [idFunc],       references: [idFunc])
   construtor  Construtor      @relation(fields: [idConstrutor], references: [idUser])
   fotos       FotoAlteracao[]
+  funcionarios AlteracaoFuncionario[]
 
   @@map("alteracao")
+}
+
+model AlteracaoFuncionario {
+  idAlteracao String @map("id_alteracao")
+  idFunc      String @map("id_func")
+
+  alteracao   Alteracao       @relation(fields: [idAlteracao], references: [idAlteracao], onDelete: Cascade)
+  funcionario FuncionarioObra @relation(fields: [idFunc], references: [idFunc], onDelete: Cascade)
+
+  @@id([idAlteracao, idFunc])
+  @@map("alteracao_funcionario")
 }
 
 // ═════════════════════════════════════════════════════════════════

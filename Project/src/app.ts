@@ -6,6 +6,7 @@
 
 import express, { Request, Response, NextFunction } from "express";
 import multer from "multer";
+import path from "path";
 import swaggerUi from 'swagger-ui-express';
 import userRoutes from "./routes/userRoutes";
 import authRoutes from "./routes/authRoutes";
@@ -19,6 +20,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 // ── Health check ──────────────────────────────────────────────────
 app.get("/health", (_req: Request, res: Response) => {
