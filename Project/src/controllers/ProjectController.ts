@@ -19,6 +19,7 @@ import {
   EmployeeNotFoundError,
   ProjectDetails,
   RoomCreationError,
+  ProjectRooms,
 } from "../services/ProjectService";
 import { CreateProjectInput } from "../middlewares/validateCreateProject";
 import { AddEmployeeInput } from "../middlewares/validateEmployee";
@@ -69,6 +70,17 @@ export class ProjectController {
         dataAlocacao: vinculo.dataAlocacao,
       })),
     };
+  }
+
+  private formatProjectRooms(andares: ProjectRooms) {
+    return andares.map((andar) => ({
+      id: andar.idAndar,
+      nome: andar.nomeAndar,
+      comodos: andar.comodos.map((comodo) => ({
+        id: comodo.idComodo,
+        nome: comodo.nomeComodo,
+      })),
+    }));
   }
 
   /**
@@ -616,6 +628,58 @@ export class ProjectController {
       res.status(500).json({
         status: "error",
         message: "Ocorreu um erro ao buscar o projeto. Tente novamente mais tarde.",
+      });
+    }
+  };
+
+  /**
+   * GET /projects/:id/rooms
+   * Busca andares e cômodos de um projeto para uso em selects.
+   */
+  getRooms = async (req: Request, res: Response): Promise<void> => {
+    if (!req.user || !req.user.id) {
+      res.status(401).json({
+        status: "error",
+        message: "Usuário não autenticado. Realize o login primeiro.",
+      });
+      return;
+    }
+
+    const idConstrutor = req.user.id;
+    const { id: idProjeto } = req.params;
+
+    try {
+      const andares = await this.projectService.getProjectRooms(
+        idProjeto,
+        idConstrutor
+      );
+
+      res.status(200).json({
+        status: "success",
+        message: "Andares e cômodos do projeto carregados com sucesso.",
+        data: this.formatProjectRooms(andares),
+      });
+    } catch (error) {
+      if (error instanceof ProjectNotFoundError) {
+        res.status(404).json({
+          status: "error",
+          message: error.message,
+        });
+        return;
+      }
+
+      if (error instanceof ProjectCreationError) {
+        res.status(400).json({
+          status: "error",
+          message: error.message,
+        });
+        return;
+      }
+
+      console.error("[ProjectController] Erro ao buscar andares e cômodos:", error);
+      res.status(500).json({
+        status: "error",
+        message: "Ocorreu um erro ao buscar os andares e cômodos. Tente novamente mais tarde.",
       });
     }
   };

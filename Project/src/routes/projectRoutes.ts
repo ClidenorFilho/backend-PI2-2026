@@ -217,6 +217,70 @@ router.put(
   projectController.updateProject
 );
 
+// ==================== GET /projects/:id/rooms ====================
+/**
+ * @swagger
+ * /projects/{id}/rooms:
+ *   get:
+ *     summary: Lista andares e cômodos do projeto
+ *     description: Retorna uma lista leve de andares com seus respectivos cômodos para uso em selects e dropdowns do Front-end
+ *     tags:
+ *       - Projetos
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: ID do projeto
+ *     responses:
+ *       200:
+ *         description: Andares e cômodos listados com sucesso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 message:
+ *                   type: string
+ *                   example: Andares e cômodos do projeto carregados com sucesso
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                       nome:
+ *                         type: string
+ *                       comodos:
+ *                         type: array
+ *                         items:
+ *                           type: object
+ *                           properties:
+ *                             id:
+ *                               type: integer
+ *                             nome:
+ *                               type: string
+ *       401:
+ *         description: Usuário não autenticado ou token inválido
+ *       404:
+ *         description: Projeto não encontrado ou usuário sem permissão de acesso
+ *       500:
+ *         description: Erro interno ao buscar andares e cômodos
+ */
+router.get(
+  "/:id/rooms",
+  authMiddleware,
+  projectController.getRooms
+);
+
 // ==================== POST /projects/:id/rooms ====================
 /**
  * @swagger
