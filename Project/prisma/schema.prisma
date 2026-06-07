@@ -32,6 +32,13 @@ enum StatusProjeto {
   DESATIVADO
 }
 
+enum AreaAlteracao {
+  ARQUITETONICA
+  ESTRUTURAL
+  HIDROSSANITARIA
+  ELETRICA
+}
+
 // ═════════════════════════════════════════════════════════════════
 // USUÁRIO BASE — herança por tabela concreta (Table-per-Type)
 // ═════════════════════════════════════════════════════════════════
@@ -200,21 +207,22 @@ model Alteracao {
   idProjetoComodo String @map("id_projeto_comodo")
 
   // FK simples → Planta
-  idPlanta        String @map("id_planta")
+  idPlanta        String? @map("id_planta")
 
   // FKs simples
   idFunc          String @map("id_func")
   idConstrutor    String @map("id_construtor")
 
-  disciplina         String
-  nomeAlteracao      String   @map("nome_alteracao")
-  descricaoAlteracao String   @map("descricao_alteracao")
-  dataAlteracao      DateTime @default(now()) @map("data_alteracao")
+  nomeAlteracao      String        @map("nome_alteracao")
+  descricaoAlteracao String        @map("descricao_alteracao")
+  area               AreaAlteracao @map("area")
+  dataAlteracao      DateTime      @default(now()) @map("data_alteracao")
 
   comodo      Comodo          @relation(fields: [idComodo, idAndar, idProjetoComodo], references: [idComodo, idAndar, idProjeto])
-  planta      Planta          @relation(fields: [idPlanta],          references: [idPlanta])
+  planta      Planta?         @relation(fields: [idPlanta],          references: [idPlanta])
   funcionario FuncionarioObra @relation(fields: [idFunc],       references: [idFunc])
   construtor  Construtor      @relation(fields: [idConstrutor], references: [idUser])
+  fotos       FotoAlteracao[]
 
   @@map("alteracao")
 }
@@ -270,4 +278,18 @@ model Manutencao {
   material Material @relation(fields: [idMaterial], references: [idMaterial])
 
   @@map("manutencao")
+}
+
+// ═════════════════════════════════════════════════════════════════
+// FOTO DA ALTERAÇÃO
+// ═════════════════════════════════════════════════════════════════
+
+model FotoAlteracao {
+  idFoto      String    @id @default(uuid()) @map("id_foto")
+  idAlteracao String    @map("id_alteracao")
+  urlDaFoto   String    @map("url_da_foto")
+
+  alteracao   Alteracao @relation(fields: [idAlteracao], references: [idAlteracao], onDelete: Cascade)
+
+  @@map("foto_alteracao")
 }

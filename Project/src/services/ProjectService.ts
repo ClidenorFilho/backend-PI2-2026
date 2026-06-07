@@ -10,7 +10,44 @@ import { prisma } from "../lib/prisma";
 import { CreateProjectInput } from "../middlewares/validateCreateProject";
 import { AddEmployeeInput } from "../middlewares/validateEmployee";
 import { UpdateEmployeeInput } from "../middlewares/validateUpdateEmployee";
-import { Projeto, FuncionarioObra, Planta } from "@prisma/client";
+import { CreateRoomInput } from "../middlewares/validateCreateRoom";
+import { Prisma, Projeto, FuncionarioObra, Planta, Comodo } from "@prisma/client";
+
+const projectDetailsInclude = {
+  plantas: true,
+  funcionariosProjeto: {
+    include: {
+      funcionario: true,
+    },
+  },
+  andares: {
+    include: {
+      comodos: true,
+    },
+  },
+} as const;
+
+export type ProjectDetails = Prisma.ProjetoGetPayload<{
+  include: typeof projectDetailsInclude;
+}>;
+
+export type ProjectRooms = Array<{
+  idAndar: number;
+  nomeAndar: string;
+  comodos: Array<{
+    idComodo: number;
+    nomeComodo: string;
+  }>;
+}>;
+
+type UpdateProjectData = {
+  descricao?: string;
+  rua?: string;
+  bairro?: string;
+  numero?: string;
+  complemento?: string;
+  dataConclusao?: Date;
+};
 
 // ── Erros customizados ────────────────────────────────────────────
 
@@ -46,6 +83,13 @@ export class DocumentUploadError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "DocumentUploadError";
+  }
+}
+
+export class RoomCreationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "RoomCreationError";
   }
 }
 
@@ -233,6 +277,104 @@ export class ProjectService {
 
       throw new DocumentUploadError(
         "Erro desconhecido ao adicionar documento. Tente novamente mais tarde."
+      );
+    }
+  }
+
+  /**
+   * Adiciona um andar e um cômodo a um projeto pertencente ao construtor.
+   * Se o andar já existir com o mesmo nome, reaproveita o registro existente.
+   * @param idProjeto - ID do projeto
+   * @param idConstrutor - ID do construtor logado
+   * @param data - Dados validados (nomeAndar, nomeComodo)
+   * @returns {Promise<Comodo>} - O cômodo criado com sua chave composta
+   * @throws {ProjectNotFoundError} se o projeto não existir ou não pertencer ao construtor
+   * @throws {RoomCreationError} em caso de erro ao criar o andar/cômodo
+   */
+  async addRoom(
+    idProjeto: string,
+    idConstrutor: string,
+    data: CreateRoomInput
+  ): Promise<Comodo> {
+    const projeto = await prisma.projeto.findFirst({
+      where: {
+        idProjeto,
+        idConstrutor,
+      },
+      select: {
+        idProjeto: true,
+      },
+    });
+
+    if (!projeto) {
+      throw new ProjectNotFoundError(
+        "Projeto não encontrado ou você não tem permissão para acessá-lo."
+      );
+    }
+
+    try {
+      const comodo = await prisma.$transaction(async (tx) => {
+        const nomeAndar = data.nomeAndar.trim();
+        const nomeComodo = data.nomeComodo.trim();
+
+        let andar = await tx.andar.findFirst({
+          where: {
+            idProjeto,
+            nomeAndar,
+          },
+        });
+
+        if (!andar) {
+          const ultimoAndar = await tx.andar.findFirst({
+            where: { idProjeto },
+            orderBy: { idAndar: "desc" },
+            select: { idAndar: true },
+          });
+
+          const novoIdAndar = (ultimoAndar?.idAndar ?? 0) + 1;
+
+          andar = await tx.andar.create({
+            data: {
+              idAndar: novoIdAndar,
+              idProjeto,
+              nomeAndar,
+            },
+          });
+        }
+
+        const ultimoComodo = await tx.comodo.findFirst({
+          where: {
+            idProjeto,
+            idAndar: andar.idAndar,
+          },
+          orderBy: { idComodo: "desc" },
+          select: { idComodo: true },
+        });
+
+        const novoIdComodo = (ultimoComodo?.idComodo ?? 0) + 1;
+
+        return tx.comodo.create({
+          data: {
+            idComodo: novoIdComodo,
+            idAndar: andar.idAndar,
+            idProjeto,
+            nomeComodo,
+          },
+        });
+      });
+
+      return comodo;
+    } catch (error) {
+      console.error("[ProjectService] Erro ao adicionar cômodo:", error);
+
+      if (error instanceof Error) {
+        throw new RoomCreationError(
+          `Erro ao adicionar cômodo: ${error.message}`
+        );
+      }
+
+      throw new RoomCreationError(
+        "Erro desconhecido ao adicionar cômodo. Tente novamente mais tarde."
       );
     }
   }
@@ -464,18 +606,11 @@ export class ProjectService {
   async getProjectById(
     idProjeto: string,
     idConstrutor: string
-  ): Promise<any> {
+  ): Promise<ProjectDetails> {
     try {
       const projeto = await prisma.projeto.findUnique({
         where: { idProjeto },
-        include: {
-          plantas: true,
-          funcionariosProjeto: {
-            include: {
-              funcionario: true,
-            },
-          },
-        },
+        include: projectDetailsInclude,
       });
 
       // Validar se o projeto existe E pertence ao construtor logado
@@ -502,6 +637,135 @@ export class ProjectService {
 
       throw new ProjectCreationError(
         "Erro desconhecido ao buscar projeto. Tente novamente mais tarde."
+      );
+    }
+  }
+
+  /**
+   * Busca andares e cômodos de um Projeto específico, garantindo que pertence ao Construtor.
+   * Retorna apenas os campos necessários para alimentar selects no Front-end.
+   * @param idProjeto - ID do projeto
+   * @param idConstrutor - ID do Construtor (extraído do token JWT)
+   * @returns {Promise<ProjectRooms>} - Lista de andares com seus cômodos
+   * @throws {ProjectNotFoundError} se o projeto não existir ou não pertencer ao construtor
+   * @throws {ProjectCreationError} em caso de erro ao buscar
+   */
+  async getProjectRooms(
+    idProjeto: string,
+    idConstrutor: string
+  ): Promise<ProjectRooms> {
+    try {
+      const projeto = await prisma.projeto.findFirst({
+        where: {
+          idProjeto,
+          idConstrutor,
+        },
+        select: {
+          idProjeto: true,
+        },
+      });
+
+      if (!projeto) {
+        throw new ProjectNotFoundError(
+          "Projeto não encontrado ou você não tem permissão para acessá-lo."
+        );
+      }
+
+      const andares = await prisma.andar.findMany({
+        where: { idProjeto },
+        select: {
+          idAndar: true,
+          nomeAndar: true,
+          comodos: {
+            select: {
+              idComodo: true,
+              nomeComodo: true,
+            },
+            orderBy: {
+              idComodo: "asc",
+            },
+          },
+        },
+        orderBy: {
+          idAndar: "asc",
+        },
+      });
+
+      return andares;
+    } catch (error) {
+      if (error instanceof ProjectNotFoundError) {
+        throw error;
+      }
+
+      console.error("[ProjectService] Erro ao buscar andares e cômodos:", error);
+
+      if (error instanceof Error) {
+        throw new ProjectCreationError(
+          `Erro ao buscar andares e cômodos: ${error.message}`
+        );
+      }
+
+      throw new ProjectCreationError(
+        "Erro desconhecido ao buscar andares e cômodos. Tente novamente mais tarde."
+      );
+    }
+  }
+
+  /**
+   * Atualiza dados cadastrais de um Projeto.
+   * Permite alterar endereço, descrição e datas.
+   */
+  async updateProject(
+    idProjeto: string,
+    idConstrutor: string,
+    data: UpdateProjectData
+  ): Promise<ProjectDetails> {
+    try {
+      const projetoExistente = await prisma.projeto.findUnique({
+        where: { idProjeto },
+        select: {
+          idProjeto: true,
+          idConstrutor: true,
+        },
+      });
+
+      if (!projetoExistente || projetoExistente.idConstrutor !== idConstrutor) {
+        throw new ProjectNotFoundError(
+          "Projeto não encontrado ou você não tem permissão para atualizá-lo."
+        );
+      }
+
+      const projetoAtualizado = await prisma.projeto.update({
+        where: { idProjeto },
+        data: {
+          ...(data.descricao !== undefined && { descricao: data.descricao }),
+          ...(data.rua !== undefined && { rua: data.rua }),
+          ...(data.bairro !== undefined && { bairro: data.bairro }),
+          ...(data.numero !== undefined && { numero: data.numero }),
+          ...(data.complemento !== undefined && { complemento: data.complemento }),
+          ...(data.dataConclusao !== undefined && {
+            dataConclusao: data.dataConclusao,
+          }),
+        },
+        include: projectDetailsInclude,
+      });
+
+      return projetoAtualizado;
+    } catch (error) {
+      if (error instanceof ProjectNotFoundError) {
+        throw error;
+      }
+
+      console.error("[ProjectService] Erro ao atualizar projeto:", error);
+
+      if (error instanceof Error) {
+        throw new ProjectCreationError(
+          `Erro ao atualizar projeto: ${error.message}`
+        );
+      }
+
+      throw new ProjectCreationError(
+        "Erro desconhecido ao atualizar projeto. Tente novamente mais tarde."
       );
     }
   }
