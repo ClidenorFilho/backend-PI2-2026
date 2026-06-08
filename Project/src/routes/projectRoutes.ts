@@ -13,7 +13,8 @@ import { validateEmployee } from "../middlewares/validateEmployee";
 import { validateUpdateEmployee } from "../middlewares/validateUpdateEmployee";
 import { validateUpdateProject } from "../middlewares/validateUpdateProject";
 import { validateCreateRoom } from "../middlewares/validateCreateRoom";
-import upload from "../config/multer";
+import { validateCreateAlteration } from "../middlewares/validateCreateAlteration";
+import upload, { uploadAlteration } from "../config/multer";
 
 const router = Router();
 
@@ -705,6 +706,96 @@ router.post(
   requireRole("CONSTRUTOR"),
   upload.single("file"),
   projectController.addDocument
+);
+
+// ==================== POST /projects/:id/alterations ====================
+/**
+ * @swagger
+ * /projects/{id}/alterations:
+ *   post:
+ *     summary: Registra uma alteração no projeto
+ *     description: Cria uma alteração vinculada ao projeto, ao andar e ao cômodo informados, com fotos opcionais e planta opcional armazenadas localmente em uploads/
+ *     tags:
+ *       - Alterações
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: ID do projeto
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               fotos:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *                 description: Até 5 imagens da alteração
+ *               planta:
+ *                 type: string
+ *                 format: binary
+ *                 description: Planta técnica opcional em PDF ou imagem
+ *               areaAlteracao:
+ *                 type: string
+ *                 enum: [ARQUITETONICA, ESTRUTURAL, HIDROSSANITARIA, ELETRICA]
+ *                 example: ARQUITETONICA
+ *               idAndar:
+ *                 type: integer
+ *                 example: 1
+ *               idComodo:
+ *                 type: integer
+ *                 example: 2
+ *               nomeAlteracao:
+ *                 type: string
+ *                 example: Ajuste de layout da sala
+ *               descricao:
+ *                 type: string
+ *                 example: Remoção parcial de parede para ampliar o ambiente
+ *               dataAlteracao:
+ *                 type: string
+ *                 format: date-time
+ *                 example: "2026-06-04T14:00:00.000Z"
+ *               funcionariosIds:
+ *                 type: string
+ *                 example: "[\"uuid-1\",\"uuid-2\"]"
+ *                 description: JSON em string com os IDs dos funcionários
+ *             required:
+ *               - areaAlteracao
+ *               - idAndar
+ *               - idComodo
+ *               - nomeAlteracao
+ *               - descricao
+ *               - dataAlteracao
+ *               - funcionariosIds
+ *     responses:
+ *       201:
+ *         description: Alteração registrada com sucesso
+ *       400:
+ *         description: Erro na validação ou regra de negócio
+ *       404:
+ *         description: Projeto, andar, cômodo ou funcionários não encontrados
+ *       500:
+ *         description: Erro interno ao registrar alteração
+ */
+router.post(
+  "/:id/alterations",
+  authMiddleware,
+  requireRole("CONSTRUTOR"),
+  uploadAlteration.fields([
+    { name: "fotos", maxCount: 5 },
+    { name: "planta", maxCount: 1 },
+  ]),
+  validateCreateAlteration,
+  projectController.createAlteration
 );
 
 // ==================== PUT /projects/:id/employees/:idFunc ====================
