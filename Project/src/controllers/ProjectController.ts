@@ -20,12 +20,15 @@ import {
   ProjectDetails,
   RoomCreationError,
   ProjectRooms,
+  AlterationCreationError,
+  RoomNotFoundError,
 } from "../services/ProjectService";
 import { CreateProjectInput } from "../middlewares/validateCreateProject";
 import { AddEmployeeInput } from "../middlewares/validateEmployee";
 import { UpdateEmployeeInput } from "../middlewares/validateUpdateEmployee";
 import { UpdateProjectInput } from "../middlewares/validateUpdateProject";
 import { CreateRoomInput } from "../middlewares/validateCreateRoom";
+import { CreateAlterationInput } from "../middlewares/validateCreateAlteration";
 
 export class ProjectController {
   constructor(private readonly projectService: ProjectService) {}
@@ -380,6 +383,93 @@ export class ProjectController {
       res.status(500).json({
         status: "error",
         message: "Ocorreu um erro ao adicionar o cômodo. Tente novamente mais tarde.",
+      });
+    }
+  };
+
+  /**
+   * POST /projects/:id/alterations
+   * Registra uma alteração no projeto com upload de fotos e planta opcional.
+   */
+  createAlteration = async (req: Request, res: Response): Promise<void> => {
+    if (!req.user || !req.user.id) {
+      res.status(401).json({
+        status: "error",
+        message: "Usuário não autenticado. Realize o login primeiro.",
+      });
+      return;
+    }
+
+    const { id: idProjeto } = req.params;
+    const idConstrutor = req.user.id;
+    const data = req.body as CreateAlterationInput;
+    const files = (req.files || {}) as {
+      fotos?: Express.Multer.File[];
+      planta?: Express.Multer.File[];
+    };
+
+    try {
+      const alteration = await this.projectService.createAlteration(
+        idProjeto,
+        idConstrutor,
+        data,
+        files
+      );
+
+      res.status(201).json({
+        status: "success",
+        message: "Alteração registrada com sucesso.",
+        data: {
+          idAlteracao: alteration.idAlteracao,
+          idProjeto: alteration.idProjeto,
+          idAndar: alteration.idAndar,
+          idComodo: alteration.idComodo,
+          idPlanta: alteration.idPlanta,
+          nomeAlteracao: alteration.nomeAlteracao,
+          descricaoAlteracao: alteration.descricaoAlteracao,
+          areaAlteracao: alteration.areaAlteracao,
+          dataAlteracao: alteration.dataAlteracao,
+          funcionariosIds: alteration.funcionariosIds,
+          fotos: alteration.fotos,
+        },
+      });
+    } catch (error) {
+      if (error instanceof ProjectNotFoundError) {
+        res.status(404).json({
+          status: "error",
+          message: error.message,
+        });
+        return;
+      }
+
+      if (error instanceof RoomNotFoundError) {
+        res.status(404).json({
+          status: "error",
+          message: error.message,
+        });
+        return;
+      }
+
+      if (error instanceof EmployeeNotFoundError) {
+        res.status(404).json({
+          status: "error",
+          message: error.message,
+        });
+        return;
+      }
+
+      if (error instanceof AlterationCreationError) {
+        res.status(400).json({
+          status: "error",
+          message: error.message,
+        });
+        return;
+      }
+
+      console.error("[ProjectController] Erro ao registrar alteração:", error);
+      res.status(500).json({
+        status: "error",
+        message: "Ocorreu um erro ao registrar a alteração. Tente novamente mais tarde.",
       });
     }
   };
