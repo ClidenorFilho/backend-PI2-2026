@@ -286,7 +286,7 @@ export class ProjectController {
       const planta = await this.projectService.addDocument(
         idProjeto,
         tipoPlanta.trim(),
-        file.path
+        file.filename
       );
 
       res.status(201).json({
