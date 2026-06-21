@@ -18,6 +18,13 @@
  *         application/json:
  *           schema:
  *             type: object
+ *             required:
+ *               - name
+ *               - cpf
+ *               - email
+ *               - password
+ *               - confirmPassword
+ *               - profile
  *             properties:
  *               name:
  *                 type: string
@@ -36,7 +43,7 @@
  *                 type: string
  *                 format: password
  *                 example: SenhaF0rte@2024
- *                 description: Mínimo 8 caracteres com maiúsculas, minúsculas e símmbolo (sem sequências como 123 ou abc)
+ *                 description: Mínimo 8 caracteres com maiúsculas, minúsculas e símbolo (sem sequências como 123 ou abc)
  *               confirmPassword:
  *                 type: string
  *                 format: password
@@ -51,13 +58,6 @@
  *                 type: string
  *                 example: "123456789"
  *                 description: Campo OBRIGATÓRIO apenas para perfil CONSTRUTOR (opcional para PROPRIETARIO)
- *             required:
- *               - name
- *               - cpf
- *               - email
- *               - password
- *               - confirmPassword
- *               - profile
  *     responses:
  *       201:
  *         description: Usuário registrado com sucesso

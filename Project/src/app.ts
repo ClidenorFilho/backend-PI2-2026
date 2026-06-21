@@ -11,6 +11,7 @@ import swaggerUi from 'swagger-ui-express';
 import userRoutes from "./routes/userRoutes";
 import authRoutes from "./routes/authRoutes";
 import projectRoutes from "./routes/projectRoutes";
+import { projectMaterialRouter, materialRouter } from "./routes/materiaisRoutes";
 import { swaggerSpec } from "./config/swaggerConfig";
 import cors from 'cors';
 
@@ -38,6 +39,12 @@ app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
 app.use("/users", userRoutes);
 app.use("/auth", authRoutes);
 app.use("/projects", projectRoutes);
+
+// ── Rotas de Materiais ────────────────────────────────────────────
+// POST /projects/:projectId/materials e GET /projects/:projectId/materials
+app.use("/projects/:projectId/materials", projectMaterialRouter);
+// PATCH /materials/:materialId
+app.use("/materials", materialRouter);
 
 // ── 404 – rota não encontrada ─────────────────────────────────────
 app.use((_req: Request, res: Response) => {
