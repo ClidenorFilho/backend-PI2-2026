@@ -39,23 +39,29 @@ enum AreaAlteracao {
   ELETRICA
 }
 
+enum AreaMaterial {
+  REVESTIMENTOS
+  PINTURAS
+  LOUCAS_E_METAIS
+  LUMINARIAS
+}
+
 // ═════════════════════════════════════════════════════════════════
 // USUÁRIO BASE — herança por tabela concreta (Table-per-Type)
 // ═════════════════════════════════════════════════════════════════
 
 model User {
-  id          String       @id @default(uuid())
-  nome        String
-  cpf         String       @unique
-  email       String       @unique
-  hashSenha   String
-  profile     ProfileType
+  id                   String      @id @default(uuid())
+  nome                 String
+  cpf                  String      @unique
+  email                String      @unique
+  hashSenha            String
+  profile              ProfileType
   resetPasswordToken   String?
   resetPasswordExpires DateTime?
 
-  construtor  Construtor?
+  construtor   Construtor?
   proprietario Proprietario?
-
 }
 
 // ── Subtipo: Construtor ───────────────────────────────────────────
@@ -87,24 +93,24 @@ model Proprietario {
 // ═════════════════════════════════════════════════════════════════
 
 model Projeto {
-  idProjeto      String   @id @default(uuid()) @map("id_projeto")
-  idConstrutor   String   @map("id_construtor")
-  idProprietario String?  @map("id_proprietario")
+  idProjeto      String        @id @default(uuid()) @map("id_projeto")
+  idConstrutor   String        @map("id_construtor")
+  idProprietario String?       @map("id_proprietario")
   art            String?
-  nomeProjeto    String   @map("nome_projeto")
+  nomeProjeto    String        @map("nome_projeto")
   descricao      String?
   rua            String
   bairro         String
   numero         String
   complemento    String?
-  dataInicio     DateTime @map("data_inicio")
-  dataConclusao  DateTime? @map("data_conclusao")
-  tipoConstrucao String   @map("tipo_construcao")
+  dataInicio     DateTime      @map("data_inicio")
+  dataConclusao  DateTime?     @map("data_conclusao")
+  tipoConstrucao String        @map("tipo_construcao")
   status         StatusProjeto @default(EM_CONSTRUCAO)
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @default(now()) @updatedAt @map("updated_at")
 
-  construtor   Construtor   @relation("ProjetoConstrutor",   fields: [idConstrutor],   references: [idUser])
+  construtor   Construtor    @relation("ProjetoConstrutor", fields: [idConstrutor], references: [idUser])
   proprietario Proprietario? @relation("ProjetoProprietario", fields: [idProprietario], references: [idUser])
 
   andares             Andar[]
@@ -174,8 +180,8 @@ model FuncionarioObra {
   nomeFunc String @map("nome_func")
   cargo    String
 
-  projetos   FuncionarioProjeto[]
-  alteracoes Alteracao[]
+  projetos             FuncionarioProjeto[]
+  alteracoes           Alteracao[]
   alteracoesVinculadas AlteracaoFuncionario[]
 
   @@map("funcionario_obra")
@@ -188,7 +194,7 @@ model FuncionarioProjeto {
   idProjeto    String   @map("id_projeto")
   dataAlocacao DateTime @map("data_alocacao")
 
-  funcionario FuncionarioObra @relation(fields: [idFunc],    references: [idFunc])
+  funcionario FuncionarioObra @relation(fields: [idFunc], references: [idFunc])
   projeto     Projeto         @relation(fields: [idProjeto], references: [idProjeto], onDelete: Cascade)
 
   @@id([idFunc, idProjeto])
@@ -200,7 +206,7 @@ model FuncionarioProjeto {
 // ═════════════════════════════════════════════════════════════════
 
 model Alteracao {
-  idAlteracao     String @id @default(uuid()) @map("id_alteracao")
+  idAlteracao String @id @default(uuid()) @map("id_alteracao")
 
   // FK composta → Cômodo
   idComodo        Int    @map("id_comodo")
@@ -208,22 +214,22 @@ model Alteracao {
   idProjetoComodo String @map("id_projeto_comodo")
 
   // FK simples → Planta
-  idPlanta        String? @map("id_planta")
+  idPlanta String? @map("id_planta")
 
   // FKs simples
-  idFunc          String @map("id_func")
-  idConstrutor    String @map("id_construtor")
+  idFunc       String @map("id_func")
+  idConstrutor String @map("id_construtor")
 
   nomeAlteracao      String        @map("nome_alteracao")
   descricaoAlteracao String        @map("descricao_alteracao")
   area               AreaAlteracao @map("area")
   dataAlteracao      DateTime      @default(now()) @map("data_alteracao")
 
-  comodo      Comodo          @relation(fields: [idComodo, idAndar, idProjetoComodo], references: [idComodo, idAndar, idProjeto])
-  planta      Planta?         @relation(fields: [idPlanta],          references: [idPlanta])
-  funcionario FuncionarioObra @relation(fields: [idFunc],       references: [idFunc])
-  construtor  Construtor      @relation(fields: [idConstrutor], references: [idUser])
-  fotos       FotoAlteracao[]
+  comodo       Comodo                 @relation(fields: [idComodo, idAndar, idProjetoComodo], references: [idComodo, idAndar, idProjeto])
+  planta       Planta?                @relation(fields: [idPlanta], references: [idPlanta])
+  funcionario  FuncionarioObra        @relation(fields: [idFunc], references: [idFunc])
+  construtor   Construtor             @relation(fields: [idConstrutor], references: [idUser])
+  fotos        FotoAlteracao[]
   funcionarios AlteracaoFuncionario[]
 
   @@map("alteracao")
@@ -245,13 +251,14 @@ model AlteracaoFuncionario {
 // ═════════════════════════════════════════════════════════════════
 
 model Material {
-  idMaterial        String  @id @default(uuid()) @map("id_material")
-  nomeMaterial      String  @map("nome_material")
+  idMaterial        String       @id @default(uuid()) @map("id_material")
+  nomeMaterial      String       @map("nome_material")
+  area              AreaMaterial // NOVO CAMPO OBRIGATÓRIO
   cor               String?
-  tipoMaterial      String  @map("tipo_material")
+  tipoMaterial      String?      @map("tipo_material") // AGORA É OPCIONAL
   tamanho           String?
   marca             String?
-  descricaoMaterial String? @map("descricao_material")
+  descricaoMaterial String?      @map("descricao_material")
   lote              String?
   referencia        String?
 
@@ -268,10 +275,10 @@ model ComodoMaterial {
   idAndar         Int     @map("id_andar")
   idProjeto       String  @map("id_projeto")
   idMaterial      String  @map("id_material")
-  quantidadeUsada Decimal @map("quantidade_usada")
+  quantidadeUsada Decimal @default(1.0) @map("quantidade_usada")
 
   comodo   Comodo   @relation(fields: [idComodo, idAndar, idProjeto], references: [idComodo, idAndar, idProjeto])
-  material Material @relation(fields: [idMaterial],                   references: [idMaterial])
+  material Material @relation(fields: [idMaterial], references: [idMaterial])
 
   @@id([idComodo, idAndar, idProjeto, idMaterial])
   @@map("comodo_material")
@@ -298,11 +305,11 @@ model Manutencao {
 // ═════════════════════════════════════════════════════════════════
 
 model FotoAlteracao {
-  idFoto      String    @id @default(uuid()) @map("id_foto")
-  idAlteracao String    @map("id_alteracao")
-  urlDaFoto   String    @map("url_da_foto")
+  idFoto      String @id @default(uuid()) @map("id_foto")
+  idAlteracao String @map("id_alteracao")
+  urlDaFoto   String @map("url_da_foto")
 
-  alteracao   Alteracao @relation(fields: [idAlteracao], references: [idAlteracao], onDelete: Cascade)
+  alteracao Alteracao @relation(fields: [idAlteracao], references: [idAlteracao], onDelete: Cascade)
 
   @@map("foto_alteracao")
 }
