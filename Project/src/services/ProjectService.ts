@@ -776,37 +776,42 @@ export class ProjectService {
   }
 
   /**
-   * Lista todos os Projetos de um Construtor com filtros opcionais.
-   * Filtra por status, ordena por updatedAt, aplica limite e busca por nome.
-   * @param filters - Objeto com { idConstrutor: string, status?: string, order?: 'asc' | 'desc', limit?: number, search?: string }
-   * @returns {Promise<Projeto[]>} - Array de projetos com dados do construtor
+   * Lista todos os Projetos do usuário autenticado com filtros opcionais.
+   *
+   * Regra de perfil:
+   *   - CONSTRUTOR  → filtra por idConstrutor
+   *   - PROPRIETARIO → filtra por idProprietario
+   *
+   * @param filters - Objeto com { user, status?, order?, limit?, search? }
+   * @returns {Promise<any[]>} - Array de projetos com dados do construtor
    * @throws {ProjectCreationError} em caso de erro ao buscar
    */
   async listProjects(filters: {
-    idConstrutor: string;
+    user: { id: string; profile: string };
     status?: string;
     order?: 'asc' | 'desc';
     limit?: number;
     search?: string;
   }): Promise<any[]> {
     try {
-      const { idConstrutor, status, order = 'desc', limit, search } = filters;
+      const { user, status, order = 'desc', limit, search } = filters;
 
-      // Construir o objeto where dinamicamente
-      const where: any = {
-        idConstrutor,
+      // Construir filtro de ownership com base no perfil do usuário logado
+      const ownershipFilter: Prisma.ProjetoWhereInput =
+        user.profile === 'PROPRIETARIO'
+          ? { idProprietario: user.id }
+          : { idConstrutor: user.id };
+
+      const where: Prisma.ProjetoWhereInput = {
+        ...ownershipFilter,
+        ...(status && { status: status as Prisma.EnumStatusProjetoFilter }),
+        ...(search && {
+          nomeProjeto: {
+            contains: search,
+            mode: 'insensitive',
+          },
+        }),
       };
-
-      if (status) {
-        where.status = status;
-      }
-
-      if (search) {
-        where.nomeProjeto = {
-          contains: search,
-          mode: 'insensitive',
-        };
-      }
 
       const projetos = await prisma.projeto.findMany({
         where,
@@ -844,17 +849,21 @@ export class ProjectService {
   }
 
   /**
-   * Busca um Projeto específico pelo ID, garantindo que pertence ao Construtor.
-   * Inclui plantas e funcionários vinculados ao projeto.
-   * @param idProjeto - ID do projeto
-   * @param idConstrutor - ID do Construtor (extraído do token JWT)
-   * @returns {Promise<any>} - Projeto com seus relacionamentos
-   * @throws {ProjectNotFoundError} se o Projeto não existir ou não pertencer ao construtor
+   * Busca um Projeto específico pelo ID, verificando ownership com base no perfil.
+   *
+   * Regra de perfil:
+   *   - CONSTRUTOR   → valida que projeto.idConstrutor === user.id
+   *   - PROPRIETARIO → valida que projeto.idProprietario === user.id
+   *
+   * @param idProjeto  - ID do projeto
+   * @param user       - Objeto { id, profile } extraído do token JWT
+   * @returns {Promise<ProjectDetails>} - Projeto com seus relacionamentos
+   * @throws {ProjectNotFoundError} se o Projeto não existir ou não pertencer ao usuário
    * @throws {ProjectCreationError} em caso de erro ao buscar
    */
   async getProjectById(
     idProjeto: string,
-    idConstrutor: string
+    user: { id: string; profile: string }
   ): Promise<ProjectDetails> {
     try {
       const projeto = await prisma.projeto.findUnique({
@@ -862,8 +871,13 @@ export class ProjectService {
         include: projectDetailsInclude,
       });
 
-      // Validar se o projeto existe E pertence ao construtor logado
-      if (!projeto || projeto.idConstrutor !== idConstrutor) {
+      // Validar existência e ownership com base no perfil do usuário
+      const temPermissao =
+        user.profile === 'PROPRIETARIO'
+          ? projeto?.idProprietario === user.id
+          : projeto?.idConstrutor === user.id;
+
+      if (!projeto || !temPermissao) {
         throw new ProjectNotFoundError(
           "Projeto não encontrado ou você não tem permissão para acessá-lo."
         );

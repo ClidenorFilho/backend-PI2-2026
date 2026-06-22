@@ -591,7 +591,7 @@ export class ProjectController {
    * Lista todos os Projetos do Construtor logado com filtros opcionais.
    */
   list = async (req: Request, res: Response): Promise<void> => {
-    // 1. Extrair o ID do Construtor (usuário logado)
+    // 1. Extrair o usuário logado (id + profile)
     if (!req.user || !req.user.id) {
       res.status(401).json({
         status: "error",
@@ -600,7 +600,7 @@ export class ProjectController {
       return;
     }
 
-    const idConstrutor = req.user.id;
+    const user = { id: req.user.id, profile: req.user.profile };
 
     // 2. Extrair e validar query parameters
     const { status, order, limit, search } = req.query;
@@ -624,9 +624,9 @@ export class ProjectController {
     const parsedSearch = search ? String(search) : undefined;
 
     try {
-      // 3. Chamar o service com os filtros
+      // 3. Chamar o service com os filtros e o perfil do usuário
       const projetos = await this.projectService.listProjects({
-        idConstrutor,
+        user,
         status: parsedStatus,
         order: parsedOrder,
         limit: parsedLimit,
@@ -669,7 +669,7 @@ export class ProjectController {
    * Busca os detalhes completos de um Projeto específico.
    */
   getById = async (req: Request, res: Response): Promise<void> => {
-    // 1. Extrair ID do Construtor (usuário logado)
+    // 1. Extrair o usuário logado (id + profile)
     if (!req.user || !req.user.id) {
       res.status(401).json({
         status: "error",
@@ -678,14 +678,14 @@ export class ProjectController {
       return;
     }
 
-    const idConstrutor = req.user.id;
+    const user = { id: req.user.id, profile: req.user.profile };
     const { id: idProjeto } = req.params;
 
     try {
-      // 2. Chamar o service
+      // 2. Chamar o service passando usuário completo
       const projeto = await this.projectService.getProjectById(
         idProjeto,
-        idConstrutor
+        user
       );
 
       // 3. Formatar resposta amigável para o Front-end
