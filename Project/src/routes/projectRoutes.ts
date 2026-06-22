@@ -6,6 +6,8 @@
 import { Router } from "express";
 import { ProjectController } from "../controllers/ProjectController";
 import { ProjectService } from "../services/ProjectService";
+import { EntregaController } from "../controllers/EntregaController";
+import { EntregaService } from "../services/EntregaService";
 import { authMiddleware } from "../middlewares/authMiddleware";
 import { requireRole } from "../middlewares/roleMiddleware";
 import { validateCreateProject } from "../middlewares/validateCreateProject";
@@ -14,6 +16,7 @@ import { validateUpdateEmployee } from "../middlewares/validateUpdateEmployee";
 import { validateUpdateProject } from "../middlewares/validateUpdateProject";
 import { validateCreateRoom } from "../middlewares/validateCreateRoom";
 import { validateCreateAlteration } from "../middlewares/validateCreateAlteration";
+import { validateEntrega } from "../middlewares/validateEntrega";
 import upload, { uploadAlteration } from "../config/multer";
 
 const router = Router();
@@ -21,6 +24,9 @@ const router = Router();
 // Composição manual de dependências (sem IoC container)
 const projectService = new ProjectService();
 const projectController = new ProjectController(projectService);
+
+const entregaService = new EntregaService();
+const entregaController = new EntregaController(entregaService);
 
 // ==================== GET /projects ====================
 /**
@@ -943,6 +949,106 @@ router.delete(
   authMiddleware,
   requireRole("CONSTRUTOR"),
   projectController.removeEmployee
+);
+
+// ==================== POST /projects/:projectId/deliver ====================
+/**
+ * @swagger
+ * /projects/{projectId}/deliver:
+ *   post:
+ *     summary: Entrega o projeto a um Proprietário
+ *     description: >
+ *       Marca o projeto como ENTREGUE e vincula um Proprietário.
+ *       Se o CPF/e-mail informado não possuir conta, uma é criada automaticamente
+ *       com senha padrão (hash do CPF). Se já existir conta, valida que o perfil
+ *       é PROPRIETARIO — caso seja CONSTRUTOR, retorna 409.
+ *       Requer perfil CONSTRUTOR e projeto com status EM_CONSTRUCAO.
+ *     tags:
+ *       - Projetos
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: projectId
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: ID do projeto a ser entregue
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - cpf
+ *               - email
+ *             properties:
+ *               cpf:
+ *                 type: string
+ *                 example: "111.444.777-35"
+ *                 description: CPF do Proprietário destinatário (com ou sem máscara)
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: proprietario@email.com
+ *                 description: E-mail do Proprietário destinatário
+ *     responses:
+ *       200:
+ *         description: Projeto entregue com sucesso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 message:
+ *                   type: string
+ *                   example: Projeto entregue com sucesso. Uma conta de Proprietário foi criada automaticamente.
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     idProjeto:
+ *                       type: string
+ *                       format: uuid
+ *                     status:
+ *                       type: string
+ *                       example: ENTREGUE
+ *                     proprietario:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                           format: uuid
+ *                         nome:
+ *                           type: string
+ *                         email:
+ *                           type: string
+ *                         criado:
+ *                           type: boolean
+ *                           description: true se a conta foi criada agora, false se já existia
+ *       400:
+ *         description: Dados inválidos (e-mail mal formado ou CPF ausente)
+ *       401:
+ *         description: Token ausente ou inválido
+ *       403:
+ *         description: Perfil não autorizado
+ *       404:
+ *         description: Projeto não encontrado
+ *       409:
+ *         description: Projeto já entregue ou CPF/e-mail pertence a um Construtor
+ *       500:
+ *         description: Erro interno ao realizar entrega
+ */
+router.post(
+  "/:projectId/deliver",
+  authMiddleware,
+  requireRole("CONSTRUTOR"),
+  validateEntrega,
+  entregaController.deliver
 );
 
 export default router;
