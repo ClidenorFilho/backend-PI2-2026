@@ -735,13 +735,13 @@ export class ProjectController {
       return;
     }
 
-    const idConstrutor = req.user.id;
+    const user = { id: req.user.id, profile: req.user.profile };
     const { id: idProjeto } = req.params;
 
     try {
       const andares = await this.projectService.getProjectRooms(
         idProjeto,
-        idConstrutor
+        user
       );
 
       res.status(200).json({

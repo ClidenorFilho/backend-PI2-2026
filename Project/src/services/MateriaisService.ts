@@ -72,6 +72,7 @@ export type MaterialComComodos = {
   descricaoMaterial: string | null;
   lote: string | null;
   referencia: string | null;
+  updatedAt: Date;
   comodos: ComodoInfo[];
 };
 
@@ -130,6 +131,7 @@ function groupByMaterial(
       descricaoMaterial: string | null;
       lote: string | null;
       referencia: string | null;
+      updatedAt: Date;
     };
     comodo: {
       idComodo: number;
@@ -157,6 +159,7 @@ function groupByMaterial(
         descricaoMaterial: material.descricaoMaterial,
         lote: material.lote,
         referencia: material.referencia,
+        updatedAt: material.updatedAt,
         comodos: [],
       });
     }
@@ -400,6 +403,7 @@ export class MateriaisService {
             descricaoMaterial: true,
             lote: true,
             referencia: true,
+            updatedAt: true,
           },
         },
         comodo: {
@@ -448,6 +452,7 @@ export class MateriaisService {
             descricaoMaterial: true,
             lote: true,
             referencia: true,
+            updatedAt: true,
           },
         },
         comodo: {

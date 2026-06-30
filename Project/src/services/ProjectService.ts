@@ -914,21 +914,34 @@ export class ProjectService {
    * @throws {ProjectCreationError} em caso de erro ao buscar
    */
   async getProjectRooms(
-    idProjeto: string,
-    idConstrutor: string
+  idProjeto: string,
+  user: { id: string; profile: string }
   ): Promise<ProjectRooms> {
     try {
-      const projeto = await prisma.projeto.findFirst({
-        where: {
-          idProjeto,
-          idConstrutor,
-        },
+      const projeto = await prisma.projeto.findUnique({
+        where: { idProjeto },
         select: {
           idProjeto: true,
+          idConstrutor: true,
+          idProprietario: true,
         },
       });
 
       if (!projeto) {
+        throw new ProjectNotFoundError(
+          "Projeto não encontrado."
+        );
+      }
+
+      // Construtor sempre acessa; Proprietário acessa se projeto foi entregue
+      const temPermissao =
+        user.profile === 'CONSTRUTOR'
+          ? projeto.idConstrutor === user.id
+          : user.profile === 'PROPRIETARIO'
+          ? projeto.idProprietario === user.id
+          : false;
+
+      if (!temPermissao) {
         throw new ProjectNotFoundError(
           "Projeto não encontrado ou você não tem permissão para acessá-lo."
         );
