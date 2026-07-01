@@ -21,6 +21,8 @@ import {
   RoomCreationError,
   ProjectRooms,
   AlterationCreationError,
+  AlterationNotFoundError,
+  AlterationListItem,
   RoomNotFoundError,
 } from "../services/ProjectService";
 import { CreateProjectInput } from "../middlewares/validateCreateProject";
@@ -770,6 +772,92 @@ export class ProjectController {
       res.status(500).json({
         status: "error",
         message: "Ocorreu um erro ao buscar os andares e cômodos. Tente novamente mais tarde.",
+      });
+    }
+  };
+
+  /**
+   * GET /projects/:id/alterations?idComodo=<number>
+   * Lista as alterações de um cômodo específico.
+   * Acessível por CONSTRUTOR (dono) e PROPRIETARIO (vinculado).
+   */
+  listAlterationsByRoom = async (req: Request, res: Response): Promise<void> => {
+    if (!req.user || !req.user.id) {
+      res.status(401).json({
+        status: "error",
+        message: "Usuário não autenticado. Realize o login primeiro.",
+      });
+      return;
+    }
+
+    const user = { id: req.user.id, profile: req.user.profile };
+    const { id: idProjeto } = req.params;
+
+    // Valida e converte o query param idComodo
+    const rawIdComodo = req.query.idComodo;
+    if (!rawIdComodo || isNaN(Number(rawIdComodo)) || !Number.isInteger(Number(rawIdComodo)) || Number(rawIdComodo) <= 0) {
+      res.status(400).json({
+        status: "error",
+        message: "O parâmetro 'idComodo' é obrigatório e deve ser um número inteiro positivo.",
+      });
+      return;
+    }
+
+    const idComodo = Number(rawIdComodo);
+
+    try {
+      const alteracoes = await this.projectService.listAlterationsByRoom(
+        idProjeto,
+        idComodo,
+        user
+      );
+
+      res.status(200).json({
+        status: "success",
+        message: "Alterações do cômodo listadas com sucesso.",
+        data: {
+          alteracoes: alteracoes.map((alt) => ({
+            idAlteracao:        alt.idAlteracao,
+            nomeAlteracao:      alt.nomeAlteracao,
+            descricaoAlteracao: alt.descricaoAlteracao,
+            area:               alt.area,
+            dataAlteracao:      alt.dataAlteracao,
+            idComodo:           alt.idComodo,
+            idAndar:            alt.idAndar,
+            fotos:              alt.fotos.map((f) => ({
+              idFoto:    f.idFoto,
+              urlDaFoto: f.urlDaFoto,
+            })),
+            funcionarios: alt.funcionarios.map((vinculo) => ({
+              funcionario: {
+                idFunc:   vinculo.funcionario.idFunc,
+                nomeFunc: vinculo.funcionario.nomeFunc,
+                cargo:    vinculo.funcionario.cargo,
+              },
+            })),
+          })),
+        },
+      });
+    } catch (error) {
+      if (error instanceof ProjectNotFoundError) {
+        res.status(404).json({ status: "error", message: error.message });
+        return;
+      }
+
+      if (error instanceof RoomNotFoundError) {
+        res.status(404).json({ status: "error", message: error.message });
+        return;
+      }
+
+      if (error instanceof AlterationCreationError) {
+        res.status(400).json({ status: "error", message: error.message });
+        return;
+      }
+
+      console.error("[ProjectController] Erro ao listar alterações do cômodo:", error);
+      res.status(500).json({
+        status: "error",
+        message: "Ocorreu um erro ao listar as alterações. Tente novamente mais tarde.",
       });
     }
   };
