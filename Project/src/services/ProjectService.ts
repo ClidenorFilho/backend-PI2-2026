@@ -138,6 +138,35 @@ export class AlterationCreationError extends Error {
   }
 }
 
+export class AlterationNotFoundError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AlterationNotFoundError";
+  }
+}
+
+// Shape de retorno da listagem de alterações por cômodo
+export type AlterationListItem = {
+  idAlteracao: string;
+  nomeAlteracao: string;
+  descricaoAlteracao: string;
+  area: AreaAlteracao;
+  dataAlteracao: Date;
+  idComodo: number;
+  idAndar: number;
+  fotos: Array<{
+    idFoto: string;
+    urlDaFoto: string;
+  }>;
+  funcionarios: Array<{
+    funcionario: {
+      idFunc: string;
+      nomeFunc: string;
+      cargo: string;
+    };
+  }>;
+};
+
 const toRelativeUploadPath = (absolutePath: string): string =>
   path.relative(process.cwd(), absolutePath).split(path.sep).join("/");
 
@@ -1042,6 +1071,123 @@ export class ProjectService {
 
       throw new ProjectCreationError(
         "Erro desconhecido ao atualizar projeto. Tente novamente mais tarde."
+      );
+    }
+  }
+
+  /**
+   * Lista as alterações de um cômodo específico dentro de um projeto.
+   * Acessível tanto pelo Construtor (dono) quanto pelo Proprietário (vinculado).
+   *
+   * @param idProjeto   - UUID do projeto
+   * @param idComodo    - ID inteiro do cômodo
+   * @param user        - Usuário logado { id, profile }
+   * @returns {Promise<AlterationListItem[]>} - Lista de alterações normalizadas
+   * @throws {ProjectNotFoundError}     se o projeto não existir ou o usuário não tiver acesso
+   * @throws {RoomNotFoundError}        se o cômodo não existir no projeto
+   * @throws {AlterationCreationError}  em caso de erro inesperado
+   */
+  async listAlterationsByRoom(
+    idProjeto: string,
+    idComodo: number,
+    user: { id: string; profile: string }
+  ): Promise<AlterationListItem[]> {
+    try {
+      // 1. Verifica se o projeto existe e se o usuário tem permissão
+      const projeto = await prisma.projeto.findUnique({
+        where: { idProjeto },
+        select: {
+          idProjeto: true,
+          idConstrutor: true,
+          idProprietario: true,
+        },
+      });
+
+      if (!projeto) {
+        throw new ProjectNotFoundError("Projeto não encontrado.");
+      }
+
+      const temPermissao =
+        user.profile === "CONSTRUTOR"
+          ? projeto.idConstrutor === user.id
+          : user.profile === "PROPRIETARIO"
+          ? projeto.idProprietario === user.id
+          : false;
+
+      if (!temPermissao) {
+        throw new ProjectNotFoundError(
+          "Projeto não encontrado ou você não tem permissão para acessá-lo."
+        );
+      }
+
+      // 2. Verifica se o cômodo pertence ao projeto
+      const comodoExiste = await prisma.comodo.findFirst({
+        where: { idProjeto, idComodo },
+        select: { idComodo: true },
+      });
+
+      if (!comodoExiste) {
+        throw new RoomNotFoundError(
+          `O cômodo ${idComodo} não foi encontrado no projeto.`
+        );
+      }
+
+      // 3. Busca as alterações filtradas pelo cômodo, com fotos e funcionários
+      const alteracoes = await prisma.alteracao.findMany({
+        where: {
+          idProjetoComodo: idProjeto,
+          idComodo,
+        },
+        select: {
+          idAlteracao: true,
+          nomeAlteracao: true,
+          descricaoAlteracao: true,
+          area: true,
+          dataAlteracao: true,
+          idComodo: true,
+          idAndar: true,
+          fotos: {
+            select: {
+              idFoto: true,
+              urlDaFoto: true,
+            },
+          },
+          funcionarios: {
+            select: {
+              funcionario: {
+                select: {
+                  idFunc: true,
+                  nomeFunc: true,
+                  cargo: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: {
+          dataAlteracao: "asc",
+        },
+      });
+
+      return alteracoes;
+    } catch (error) {
+      if (
+        error instanceof ProjectNotFoundError ||
+        error instanceof RoomNotFoundError
+      ) {
+        throw error;
+      }
+
+      console.error("[ProjectService] Erro ao listar alterações do cômodo:", error);
+
+      if (error instanceof Error) {
+        throw new AlterationCreationError(
+          `Erro ao listar alterações: ${error.message}`
+        );
+      }
+
+      throw new AlterationCreationError(
+        "Erro desconhecido ao listar alterações. Tente novamente mais tarde."
       );
     }
   }

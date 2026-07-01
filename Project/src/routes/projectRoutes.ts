@@ -352,6 +352,114 @@ router.get(
   projectController.getRooms
 );
 
+// ==================== GET /projects/:id/alterations ====================
+/**
+ * @swagger
+ * /projects/{id}/alterations:
+ *   get:
+ *     summary: Lista as alterações de um cômodo específico do projeto
+ *     description: >
+ *       Retorna todas as alterações registradas para um cômodo dentro de um
+ *       projeto, ordenadas por data crescente. Acessível pelo Construtor (dono
+ *       do projeto) e pelo Proprietário (vinculado ao projeto após entrega).
+ *     tags:
+ *       - Alterações
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: ID do projeto
+ *       - name: idComodo
+ *         in: query
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *         description: ID inteiro do cômodo cujas alterações serão listadas
+ *     responses:
+ *       200:
+ *         description: Alterações listadas com sucesso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 message:
+ *                   type: string
+ *                   example: Alterações do cômodo listadas com sucesso.
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     alteracoes:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           idAlteracao:
+ *                             type: string
+ *                             format: uuid
+ *                           nomeAlteracao:
+ *                             type: string
+ *                           descricaoAlteracao:
+ *                             type: string
+ *                           area:
+ *                             type: string
+ *                             enum: [ARQUITETONICA, ESTRUTURAL, HIDROSSANITARIA, ELETRICA]
+ *                           dataAlteracao:
+ *                             type: string
+ *                             format: date-time
+ *                           idComodo:
+ *                             type: integer
+ *                           idAndar:
+ *                             type: integer
+ *                           fotos:
+ *                             type: array
+ *                             items:
+ *                               type: object
+ *                               properties:
+ *                                 idFoto:
+ *                                   type: string
+ *                                   format: uuid
+ *                                 urlDaFoto:
+ *                                   type: string
+ *                           funcionarios:
+ *                             type: array
+ *                             items:
+ *                               type: object
+ *                               properties:
+ *                                 funcionario:
+ *                                   type: object
+ *                                   properties:
+ *                                     idFunc:
+ *                                       type: string
+ *                                       format: uuid
+ *                                     nomeFunc:
+ *                                       type: string
+ *                                     cargo:
+ *                                       type: string
+ *       400:
+ *         description: Parâmetro idComodo ausente ou inválido
+ *       401:
+ *         description: Usuário não autenticado
+ *       404:
+ *         description: Projeto ou cômodo não encontrado
+ *       500:
+ *         description: Erro interno ao listar alterações
+ */
+router.get(
+  "/:id/alterations",
+  authMiddleware,
+  projectController.listAlterationsByRoom
+);
+
 // ==================== POST /projects/:id/rooms ====================
 /**
  * @swagger
